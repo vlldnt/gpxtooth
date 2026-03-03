@@ -18,7 +18,7 @@ let snapMarker = null;         // circle that snaps to nearest point
 let chartMeta = {};            // { hr: { data, pad, canvasW, canvasH }, speed: {...}, elev: {...} }
 
 // Auth & storage
-const AUTH_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918'; // SHA-256 of "admin"
+const AUTH_HASH = 'e7bced879ce19411713d84de22c8c853499d5f75de93a0fabdffda611eb24887'; // SHA-256 of "Awlmpzw12"
 let currentActivityFilter = 'all';
 let heroShown = true;
 
@@ -62,7 +62,6 @@ async function login(password) {
   if (hash === AUTH_HASH) {
     sessionStorage.setItem('gpxtooth_auth', 'true');
     modal.classList.remove('show');
-    updateImportButtonVisibility();
     showToast('Connecté avec succès');
     document.getElementById('authPassword').value = '';
     errorEl.classList.remove('show');
@@ -74,14 +73,36 @@ async function login(password) {
 
 function logout() {
   sessionStorage.removeItem('gpxtooth_auth');
-  updateImportButtonVisibility();
   showToast('Déconnecté');
 }
 
-function updateImportButtonVisibility() {
-  const importBtn = document.querySelector('label[for="fileInput"]');
-  if (importBtn) {
-    importBtn.style.display = isAuthenticated() ? '' : 'none';
+function setupImportButton() {
+  const fileInput = document.getElementById('fileInput');
+  const importBtnNav = document.getElementById('btnImport');
+  const importBtnHero = document.getElementById('btnImportHero');
+
+  const handleImportClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isAuthenticated()) {
+      // Open file dialog
+      fileInput.click();
+    } else {
+      // Show auth modal
+      document.getElementById('authModal').classList.add('show');
+      document.getElementById('authPassword').focus();
+    }
+  };
+
+  // Nav button
+  if (importBtnNav) {
+    importBtnNav.addEventListener('click', handleImportClick);
+  }
+
+  // Hero button
+  if (importBtnHero) {
+    importBtnHero.addEventListener('click', handleImportClick);
   }
 }
 
@@ -247,16 +268,20 @@ function parseGPX(xmlString) {
 }
 
 function parseActivityType(doc) {
-  const typeEl = doc.querySelector('type');
-  if (!typeEl) return 'other';
+  try {
+    const typeEls = doc.getElementsByTagName('type');
+    if (!typeEls || typeEls.length === 0) return 'other';
 
-  const type = typeEl.textContent.toLowerCase().trim();
-  if (type.includes('vtt') || type.includes('mtb') || type.includes('mountain')) return 'vtt';
-  if (type.includes('running') || type.includes('run') || type.includes('course')) return 'running';
-  if (type.includes('hiking') || type.includes('hike') || type.includes('rando')) return 'hiking';
-  if (type.includes('cycling') || type.includes('bike') || type.includes('cycling')) return 'cycling';
+    const type = typeEls[0].textContent.toLowerCase().trim();
+    if (type.includes('vtt') || type.includes('mtb') || type.includes('mountain')) return 'vtt';
+    if (type.includes('running') || type.includes('run') || type.includes('course')) return 'running';
+    if (type.includes('hiking') || type.includes('hike') || type.includes('rando')) return 'hiking';
+    if (type.includes('cycling') || type.includes('bike') || type.includes('cycling')) return 'cycling';
 
-  return 'other';
+    return 'other';
+  } catch (e) {
+    return 'other';
+  }
 }
 
 // ── Stats calculator ─────────────────────────────
@@ -346,32 +371,23 @@ function updateStats(stats, name, date) {
   const durStr = dur > 0 ? `${h}h${String(m).padStart(2, '0')}` : '—';
 
   // Mini hero cards
-  document.getElementById('mini-dist-val').textContent = fmt(stats.dist);
-  document.getElementById('mini-elev-val').textContent = Math.round(stats.elevUp);
-  document.getElementById('mini-dur-val').textContent = durStr;
-  document.getElementById('mini-hr-val').textContent = stats.hrAvg ?? '—';
-
-  // Dashboard stats
-  document.getElementById('stat-dist').textContent = fmt(stats.dist);
-  document.getElementById('stat-dur').textContent = durStr;
-  document.getElementById('stat-elev-up').textContent = Math.round(stats.elevUp);
-  document.getElementById('stat-elev-down').textContent = Math.round(stats.elevDown);
-  document.getElementById('stat-speed-avg').textContent = fmt(stats.avgSpeed);
-  document.getElementById('stat-hr').textContent = stats.hrAvg ?? '—';
+  const miniDist = document.getElementById('mini-dist-val');
+  if (miniDist) miniDist.textContent = fmt(stats.dist);
+  const miniElev = document.getElementById('mini-elev-val');
+  if (miniElev) miniElev.textContent = Math.round(stats.elevUp);
+  const miniDur = document.getElementById('mini-dur-val');
+  if (miniDur) miniDur.textContent = durStr;
+  const miniHR = document.getElementById('mini-hr-val');
+  if (miniHR) miniHR.textContent = stats.hrAvg ?? '—';
 
   // Track header
-  document.getElementById('trackName').textContent = name;
-  document.getElementById('trackDate').textContent = date
-    ? date.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    : '';
-
-  // HR badges in stats header
-  if (stats.hasHR) {
-    document.getElementById('hrSection').style.display = '';
-    document.getElementById('hr-avg-badge').textContent = stats.hrAvg;
-    document.getElementById('hr-max-badge').textContent = stats.hrMax;
-  } else {
-    document.getElementById('hrSection').style.display = 'none';
+  const trackName = document.getElementById('trackName');
+  if (trackName) trackName.textContent = name;
+  const trackDate = document.getElementById('trackDate');
+  if (trackDate) {
+    trackDate.textContent = date
+      ? date.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
   }
 }
 
@@ -902,8 +918,6 @@ function renderActivities(filter = 'all') {
 function loadGPX(xmlString, filename = null) {
   try {
     const parsed = parseGPX(xmlString);
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xmlString, 'application/xml');
 
     if (parsed.points.length < 2) {
       showToast('Fichier GPX vide ou invalide');
@@ -945,14 +959,14 @@ function loadGPX(xmlString, filename = null) {
 
     // Save activity if authenticated
     if (isAuthenticated()) {
-      const actType = parseActivityType(doc);
+      const actType = parseActivityType(new DOMParser().parseFromString(xmlString, 'application/xml'));
       saveActivity(parsed.name, parsed.date, actType, stats, xmlString, filename);
       showToast(`Trace sauvegardée : ${parsed.name}`);
     }
 
     showToast(`Trace chargée : ${parsed.name}`);
   } catch (e) {
-    console.error(e);
+    console.error('GPX Error:', e);
     showToast('Erreur lors du parsing GPX');
   }
 }
@@ -1076,6 +1090,6 @@ document.addEventListener('DOMContentLoaded', () => {
   bindMetricButtons();
   bindDemoButtons();
   bindAuthModal();
-  updateImportButtonVisibility();
+  setupImportButton();
   renderActivities();
 });

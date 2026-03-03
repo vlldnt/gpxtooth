@@ -39,21 +39,18 @@
     <ul class="nav__links" role="list">
       <li><a href="#dashboard">Dashboard</a></li>
       <li><a href="#features">Fonctionnalités</a></li>
-      <li><a href="#import">Importer</a></li>
     </ul>
 
-    <label for="fileInput" class="btn btn--primary btn--sm">
+    <button id="btnImport" class="btn btn--primary btn--sm">
       <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
       </svg>
       Importer
-    </label>
+    </button>
 
     <button id="btnLogin" class="btn btn--ghost btn--sm">🔒 Connexion</button>
-    <button id="btnLoadDemo" class="btn btn--primary btn--sm">
-      Charger démo
-    </button>
+
   </nav>
 
   <!-- ━━━ HERO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
@@ -68,7 +65,7 @@
     <div class="hero__content">
       <div class="badge anim-fade">
         <span class="badge__dot"></span>
-        GPX &amp; FIT · Garmin · Leaflet · Open Source
+        GPX &amp; FIT  · Leaflet · Open Source
       </div>
 
       <h1 class="hero__title anim-up">
@@ -78,18 +75,18 @@
 
       <p class="hero__desc anim-up" style="--d:.1s">
         Dashboard interactif pour explorer tes fichiers
-        <code>.gpx</code> et <code>.fit</code> Garmin —
+        <code>.gpx</code> et <code>.fit</code —
         carte, stats, dénivelé, fréquence cardiaque, tout en local.
       </p>
 
       <div class="hero__actions anim-up" style="--d:.2s">
-        <label for="fileInput" class="btn btn--primary btn--lg">
+        <button id="btnImportHero" class="btn btn--primary btn--lg">
           <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
           </svg>
           Importer un fichier GPX
-        </label>
+        </button>
         <input id="fileInput" type="file" accept=".gpx" class="sr-only" />
         <button id="btnDemo" class="btn btn--ghost btn--lg">Voir la démo →</button>
       </div>
@@ -185,7 +182,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- CHARTS ROW: 3 charts side by side -->
       <div class="charts-row">
         <div class="panel glass-card panel--chart">
@@ -289,7 +286,7 @@
           <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
         </div>
         <h3>Fréquence cardiaque</h3>
-        <p>Graphe temporel FC depuis l'extension Garmin TrackPointExtension v1 dans les fichiers GPX.</p>
+        <p>Graphe temporel FC depuis l'extensio TrackPointExtension v1 dans les fichiers GPX.</p>
       </div>
 
       <div class="feature-card reveal" style="--ri:4">
@@ -305,11 +302,25 @@
           <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
         </div>
         <h3>Import GPX &amp; FIT</h3>
-        <p>Glisse-dépose tes exports Garmin Connect. Supporte GPX natif et FIT via conversion Python.</p>
+        <p>Glisse-dépose tes export Connect. Supporte GPX natif et FIT via conversion Python.</p>
       </div>
 
     </div>
   </section>
+
+  <!-- ━━━ FOOTER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+  <footer class="footer">
+    <p class="footer__brand">GPX<em>tooth</em></p>
+    <p class="footer__sub">GPS Dashboard  FIT · GPX · Leaflet · 100 % local</p>
+  </footer>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+    </svg>
+    <span id="toastMsg"></span>
+  </div>
 
   <!-- ━━━ IMPORT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
   <section id="import" class="import-section section-gap">
@@ -330,21 +341,7 @@
     <input id="fileInput2" type="file" accept=".gpx" class="sr-only" />
   </section>
 
-  <!-- ━━━ FOOTER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-  <footer class="footer">
-    <p class="footer__brand">GPX<em>tooth</em></p>
-    <p class="footer__sub">GPS Dashboard · Garmin FIT · GPX · Leaflet · 100 % local</p>
-  </footer>
-
-  <!-- Toast -->
-  <div id="toast" class="toast" role="status" aria-live="polite">
-    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-    </svg>
-    <span id="toastMsg"></span>
-  </div>
-
-  <!-- Authentication Modal -->
+  <!-- ━━━ AUTHENTICATION MODAL ━━━ -->
   <div id="authModal" class="auth-modal">
     <div class="auth-modal__backdrop"></div>
     <div class="auth-modal__box">
