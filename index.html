@@ -42,6 +42,15 @@
       <li><a href="#import">Importer</a></li>
     </ul>
 
+    <label for="fileInput" class="btn btn--primary btn--sm">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+      </svg>
+      Importer
+    </label>
+
+    <button id="btnLogin" class="btn btn--ghost btn--sm">🔒 Connexion</button>
     <button id="btnLoadDemo" class="btn btn--primary btn--sm">
       Charger démo
     </button>
@@ -111,6 +120,20 @@
     </div>
   </section>
 
+  <!-- ━━━ ACTIVITIES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+  <section id="activities" class="activities-section section-gap">
+    <div class="section-header">
+      <p class="section-header__eyebrow">Mes activités</p>
+      <h2 class="section-header__title">Historique</h2>
+    </div>
+    <div class="activity-filters" id="activityFilters"></div>
+    <div class="activities-grid" id="activitiesGrid">
+      <div style="grid-column: 1/-1; text-align: center; padding: 3rem 1rem; color: var(--c-text-3);">
+        <p>Aucune activité pour le moment. Importez un fichier GPX pour commencer.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- ━━━ DASHBOARD ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
   <section id="dashboard" class="dashboard">
     <div class="dashboard__container">
@@ -137,7 +160,15 @@
           </div>
         </div>
 
-        <div id="map" class="map-container" role="img" aria-label="Carte de la trace GPS"></div>
+        <div id="map" class="map-container" role="img" aria-label="Carte de la trace GPS">
+          <div class="map-overlay-stats" id="mapOverlayStats" hidden>
+            <div class="mos-row"><span class="mos-label">Distance</span><span class="mos-val" id="mos-dist">—</span></div>
+            <div class="mos-row"><span class="mos-label">D+</span><span class="mos-val" id="mos-elev">—</span></div>
+            <div class="mos-row"><span class="mos-label">Durée</span><span class="mos-val" id="mos-dur">—</span></div>
+            <div class="mos-row"><span class="mos-label">Vitesse</span><span class="mos-val" id="mos-spd">—</span></div>
+            <div class="mos-row" id="mos-hr-row" style="display: none;"><span class="mos-label">FC moy.</span><span class="mos-val" id="mos-hr">—</span></div>
+          </div>
+        </div>
 
         <div class="map-toolbar">
           <span class="map-toolbar__label">Colorier par</span>
@@ -154,68 +185,7 @@
           </div>
         </div>
       </div>
-
-      <!-- STATS ROW -->
-      <div class="panel glass-card panel--stats">
-        <div class="panel__header">
-          <div class="icon-pill icon-pill--blue">
-            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-          </div>
-          <h2 class="panel__name">Statistiques</h2>
-          <div class="hr-badges" id="hrSection">
-            <span class="hr-badge">FC moy. <strong id="hr-avg-badge">—</strong> bpm</span>
-            <span class="hr-badge">FC max <strong id="hr-max-badge">—</strong> bpm</span>
-          </div>
-        </div>
-        <div class="stats-grid stats-grid--wide">
-          <div class="stat-item">
-            <div class="stat-item__icon" style="color:var(--c-green)">
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-            </div>
-            <div class="stat-item__val" id="stat-dist">—</div>
-            <div class="stat-item__label">Distance · km</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-item__icon" style="color:#60a5fa">
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </div>
-            <div class="stat-item__val" id="stat-dur">—</div>
-            <div class="stat-item__label">Durée</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-item__icon" style="color:#fb923c">
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
-            </div>
-            <div class="stat-item__val" id="stat-elev-up">—</div>
-            <div class="stat-item__label">Dénivelé+ · m</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-item__icon" style="color:#c084fc">
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
-            </div>
-            <div class="stat-item__val" id="stat-elev-down">—</div>
-            <div class="stat-item__label">Dénivelé− · m</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-item__icon" style="color:#fbbf24">
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            </div>
-            <div class="stat-item__val" id="stat-speed-avg">—</div>
-            <div class="stat-item__label">Vitesse · km/h</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-item__icon" style="color:#f87171">
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
-            </div>
-            <div class="stat-item__val" id="stat-hr">—</div>
-            <div class="stat-item__label">FC moy. · bpm</div>
-          </div>
-        </div>
-      </div>
-
+      
       <!-- CHARTS ROW: 3 charts side by side -->
       <div class="charts-row">
         <div class="panel glass-card panel--chart">
@@ -232,6 +202,10 @@
             <canvas id="hrChart" class="chart-canvas" height="140"></canvas>
             <div class="chart-crosshair" id="crosshair-hr"></div>
           </div>
+          <div class="chart-values" id="chartVals-hr">
+            <span class="cv-item"><span class="cv-label">FC</span><span class="cv-val" id="cv-hr-val">—</span> <span class="cv-unit">bpm</span></span>
+            <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val" id="cv-hr-dist">—</span> <span class="cv-unit">km</span></span>
+          </div>
         </div>
 
         <div class="panel glass-card panel--chart">
@@ -247,6 +221,10 @@
             <canvas id="speedChart" class="chart-canvas" height="140"></canvas>
             <div class="chart-crosshair" id="crosshair-speed"></div>
           </div>
+          <div class="chart-values" id="chartVals-speed">
+            <span class="cv-item"><span class="cv-label">Vitesse</span><span class="cv-val" id="cv-speed-val">—</span> <span class="cv-unit">km/h</span></span>
+            <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val" id="cv-speed-dist">—</span> <span class="cv-unit">km</span></span>
+          </div>
         </div>
 
         <div class="panel glass-card panel--chart">
@@ -261,6 +239,10 @@
           <div class="chart-wrapper" id="chartWrap-elev">
             <canvas id="elevChart" class="chart-canvas" height="140"></canvas>
             <div class="chart-crosshair" id="crosshair-elev"></div>
+          </div>
+          <div class="chart-values" id="chartVals-elev">
+            <span class="cv-item"><span class="cv-label">Altitude</span><span class="cv-val" id="cv-elev-val">—</span> <span class="cv-unit">m</span></span>
+            <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val" id="cv-elev-dist">—</span> <span class="cv-unit">km</span></span>
           </div>
         </div>
       </div>
@@ -360,6 +342,21 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
     </svg>
     <span id="toastMsg"></span>
+  </div>
+
+  <!-- Authentication Modal -->
+  <div id="authModal" class="auth-modal">
+    <div class="auth-modal__backdrop"></div>
+    <div class="auth-modal__box">
+      <h2>Connexion</h2>
+      <p>Entrez le mot de passe pour importer vos traces.</p>
+      <input id="authPassword" type="password" class="auth-modal__input" placeholder="Mot de passe" />
+      <div id="authError" class="auth-modal__error"></div>
+      <div class="auth-modal__actions">
+        <button id="authSubmit" class="btn btn--primary btn--sm">Connexion</button>
+        <button id="authCancel" class="btn btn--ghost btn--sm">Annuler</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

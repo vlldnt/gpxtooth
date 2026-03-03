@@ -17,20 +17,148 @@ let snapMarker = null;         // circle that snaps to nearest point
 // Chart crosshair state
 let chartMeta = {};            // { hr: { data, pad, canvasW, canvasH }, speed: {...}, elev: {...} }
 
+// Auth & storage
+const AUTH_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918'; // SHA-256 of "admin"
+let currentActivityFilter = 'all';
+let heroShown = true;
+
 const TILE_LAYERS = {
   osm: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attr: '© OpenStreetMap contributors'
+    attr: '© OpenStreetMap contributors',
+    options: { maxZoom: 19 }
   },
   topo: {
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attr: '© OpenTopoMap contributors'
+    attr: '© OpenTopoMap contributors',
+    options: { maxZoom: 19 }
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr: '© ESRI World Imagery'
+    attr: '© ESRI World Imagery',
+    options: { maxZoom: 19 }
   }
 };
+
+// ── Authentication ──────────────────────────────
+async function hashPassword(password) {
+  const enc = new TextEncoder();
+  const data = enc.encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function isAuthenticated() {
+  return sessionStorage.getItem('gpxtooth_auth') === 'true';
+}
+
+async function login(password) {
+  const hash = await hashPassword(password);
+  const modal = document.getElementById('authModal');
+  const errorEl = document.getElementById('authError');
+
+  if (hash === AUTH_HASH) {
+    sessionStorage.setItem('gpxtooth_auth', 'true');
+    modal.classList.remove('show');
+    updateImportButtonVisibility();
+    showToast('Connecté avec succès');
+    document.getElementById('authPassword').value = '';
+    errorEl.classList.remove('show');
+  } else {
+    errorEl.textContent = 'Mot de passe incorrect';
+    errorEl.classList.add('show');
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('gpxtooth_auth');
+  updateImportButtonVisibility();
+  showToast('Déconnecté');
+}
+
+function updateImportButtonVisibility() {
+  const importBtn = document.querySelector('label[for="fileInput"]');
+  if (importBtn) {
+    importBtn.style.display = isAuthenticated() ? '' : 'none';
+  }
+}
+
+function bindAuthModal() {
+  const modal = document.getElementById('authModal');
+  const input = document.getElementById('authPassword');
+  const submitBtn = document.getElementById('authSubmit');
+  const cancelBtn = document.getElementById('authCancel');
+  const loginBtn = document.getElementById('btnLogin');
+
+  loginBtn.addEventListener('click', () => {
+    modal.classList.add('show');
+    input.focus();
+    input.value = '';
+    document.getElementById('authError').classList.remove('show');
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    if (input.value) await login(input.value);
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    modal.classList.remove('show');
+  });
+
+  input.addEventListener('keypress', async (e) => {
+    if (e.key === 'Enter' && input.value) await login(input.value);
+  });
+
+  modal.querySelector('.auth-modal__backdrop').addEventListener('click', () => {
+    modal.classList.remove('show');
+  });
+}
+
+// ── Storage ──────────────────────────────────────
+function loadActivities() {
+  const json = localStorage.getItem('gpxtooth_activities');
+  return json ? JSON.parse(json) : [];
+}
+
+function saveActivities(activities) {
+  localStorage.setItem('gpxtooth_activities', JSON.stringify(activities));
+}
+
+function saveActivity(name, date, type, stats, gpxContent, filename) {
+  if (!isAuthenticated()) return;
+  const activities = loadActivities();
+  activities.unshift({
+    id: Date.now().toString(),
+    name,
+    date: date ? date.toISOString() : new Date().toISOString(),
+    type: type || 'other',
+    stats,
+    gpxContent,
+    filename,
+    savedAt: new Date().toISOString()
+  });
+  saveActivities(activities);
+  renderActivities();
+}
+
+function deleteActivity(id) {
+  let activities = loadActivities();
+  activities = activities.filter(a => a.id !== id);
+  saveActivities(activities);
+  renderActivities();
+}
+
+// ── Hide hero on first load ─────────────────────
+function hideHero() {
+  if (!heroShown) return;
+  const hero = document.querySelector('.hero');
+  if (hero) {
+    hero.classList.add('hidden');
+    heroShown = false;
+  }
+}
 
 // ── Init map ─────────────────────────────────────
 function initMap() {
@@ -72,7 +200,12 @@ function initReveal() {
 function setTileLayer(name) {
   if (currentTileLayer) map.removeLayer(currentTileLayer);
   const cfg = TILE_LAYERS[name];
-  currentTileLayer = L.tileLayer(cfg.url, { attribution: cfg.attr, maxZoom: 19 });
+  const opts = {
+    attribution: cfg.attr,
+    ...cfg.options,
+    crossOrigin: 'anonymous'
+  };
+  currentTileLayer = L.tileLayer(cfg.url, opts);
   currentTileLayer.addTo(map);
 }
 
@@ -111,6 +244,19 @@ function parseGPX(xmlString) {
   }
 
   return { name, date, points };
+}
+
+function parseActivityType(doc) {
+  const typeEl = doc.querySelector('type');
+  if (!typeEl) return 'other';
+
+  const type = typeEl.textContent.toLowerCase().trim();
+  if (type.includes('vtt') || type.includes('mtb') || type.includes('mountain')) return 'vtt';
+  if (type.includes('running') || type.includes('run') || type.includes('course')) return 'running';
+  if (type.includes('hiking') || type.includes('hike') || type.includes('rando')) return 'hiking';
+  if (type.includes('cycling') || type.includes('bike') || type.includes('cycling')) return 'cycling';
+
+  return 'other';
 }
 
 // ── Stats calculator ─────────────────────────────
@@ -227,6 +373,30 @@ function updateStats(stats, name, date) {
   } else {
     document.getElementById('hrSection').style.display = 'none';
   }
+}
+
+// ── Map overlay stats ────────────────────────────
+function updateMapOverlay(stats) {
+  const overlay = document.getElementById('mapOverlayStats');
+  const fmt = (v, d = 1) => v != null ? v.toFixed(d) : '—';
+  const dur = stats.durationMs;
+  const h = Math.floor(dur / 3600000);
+  const m = Math.floor((dur % 3600000) / 60000);
+  const durStr = dur > 0 ? `${h}h${String(m).padStart(2, '0')}` : '—';
+
+  document.getElementById('mos-dist').textContent = fmt(stats.dist, 1);
+  document.getElementById('mos-elev').textContent = Math.round(stats.elevUp);
+  document.getElementById('mos-dur').textContent = durStr;
+  document.getElementById('mos-spd').textContent = fmt(stats.avgSpeed);
+
+  if (stats.hasHR) {
+    document.getElementById('mos-hr-row').style.display = '';
+    document.getElementById('mos-hr').textContent = stats.hrAvg;
+  } else {
+    document.getElementById('mos-hr-row').style.display = 'none';
+  }
+
+  overlay.removeAttribute('hidden');
 }
 
 // ── Color helpers ─────────────────────────────────
@@ -457,6 +627,8 @@ function addHoverLayer(points) {
     // Show crosshair on all charts at the proportional position
     const ratio = idx / (points.length - 1);
     showAllCrosshairs(ratio);
+    // Update chart values
+    updateChartValues(idx);
   });
 
   hoverLine.on('mouseout', () => {
@@ -576,6 +748,23 @@ function hideAllCrosshairs() {
   }
 }
 
+function updateChartValues(idx) {
+  if (!trackData || idx < 0 || idx >= trackData.points.length) return;
+  const pt = trackData.points[idx];
+
+  // HR chart values
+  document.getElementById('cv-hr-val').textContent = pt.hr ? pt.hr : '—';
+  document.getElementById('cv-hr-dist').textContent = pt._cumDist ? pt._cumDist.toFixed(1) : '—';
+
+  // Speed chart values
+  document.getElementById('cv-speed-val').textContent = pt._speed ? pt._speed.toFixed(1) : '—';
+  document.getElementById('cv-speed-dist').textContent = pt._cumDist ? pt._cumDist.toFixed(1) : '—';
+
+  // Elevation chart values
+  document.getElementById('cv-elev-val').textContent = pt.ele ? Math.round(pt.ele) : '—';
+  document.getElementById('cv-elev-dist').textContent = pt._cumDist ? pt._cumDist.toFixed(1) : '—';
+}
+
 function initChartHover() {
   for (const key of ['hr', 'speed', 'elev']) {
     const wrapper = document.getElementById('chartWrap-' + key);
@@ -599,6 +788,9 @@ function initChartHover() {
         snapMarker.setLatLng([pt.lat, pt.lon]);
         snapMarker.setStyle({ opacity: 1, fillOpacity: 1 });
       }
+
+      // Update chart values
+      updateChartValues(idx);
     });
 
     wrapper.addEventListener('mouseleave', () => {
@@ -615,10 +807,103 @@ function subsample(arr, maxPoints = 400) {
   return arr.filter((_, i) => i % step === 0);
 }
 
+// ── Render activities ───────────────────────────
+function getActivityTypeIcon(type) {
+  const icons = {
+    vtt: '🚵',
+    running: '🏃',
+    hiking: '🥾',
+    cycling: '🚴',
+    other: '📍'
+  };
+  return icons[type] || icons.other;
+}
+
+function renderActivities(filter = 'all') {
+  const activities = loadActivities();
+  const grid = document.getElementById('activitiesGrid');
+
+  // Render filter pills
+  const filtersEl = document.getElementById('activityFilters');
+  const types = ['all', ...new Set(activities.map(a => a.type))];
+  filtersEl.innerHTML = types
+    .map(type => {
+      const label = type === 'all' ? 'Toutes' : type.charAt(0).toUpperCase() + type.slice(1);
+      return `<button class="filter-pill ${filter === type ? 'active' : ''}" data-filter="${type}">${label}</button>`;
+    })
+    .join('');
+
+  // Add filter click handlers
+  filtersEl.querySelectorAll('.filter-pill').forEach(btn => {
+    btn.addEventListener('click', () => renderActivities(btn.dataset.filter));
+  });
+
+  // Filter activities
+  const filtered = filter === 'all' ? activities : activities.filter(a => a.type === filter);
+
+  // Render activity cards
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem 1rem; color: var(--c-text-3);"><p>Aucune activité pour le moment. Importez un fichier GPX pour commencer.</p></div>';
+  } else {
+    grid.innerHTML = filtered
+      .map(activity => {
+        const date = new Date(activity.date);
+        const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+        const icon = getActivityTypeIcon(activity.type);
+        const stats = activity.stats;
+        const dur = stats.durationMs;
+        const h = Math.floor(dur / 3600000);
+        const m = Math.floor((dur % 3600000) / 60000);
+        const durStr = dur > 0 ? `${h}h${String(m).padStart(2, '0')}` : '—';
+
+        return `
+          <div class="activity-card glass-card" data-id="${activity.id}">
+            <div class="activity-card__header">
+              <span class="activity-type-badge ${activity.type}">${icon} ${activity.type.toUpperCase()}</span>
+              <span class="activity-card__date">${dateStr}</span>
+            </div>
+            <h3 class="activity-card__name">${activity.name}</h3>
+            <div class="activity-card__stats">
+              <span>${stats.dist.toFixed(1)} km</span>
+              <span>${Math.round(stats.elevUp)} m+</span>
+              <span>${durStr}</span>
+            </div>
+            <div class="activity-card__actions">
+              <button class="btn btn--ghost btn--sm activity-view">Voir →</button>
+              <button class="btn btn--ghost btn--sm activity-delete">🗑</button>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    // Add event listeners
+    grid.querySelectorAll('.activity-card').forEach(card => {
+      const id = card.dataset.id;
+      const activity = filtered.find(a => a.id === id);
+
+      card.querySelector('.activity-view').addEventListener('click', () => {
+        loadGPX(activity.gpxContent, activity.filename);
+      });
+
+      card.querySelector('.activity-delete').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('Êtes-vous sûr ?')) {
+          deleteActivity(id);
+        }
+      });
+    });
+  }
+
+  currentActivityFilter = filter;
+}
+
 // ── Load & render GPX ─────────────────────────────
 function loadGPX(xmlString, filename = null) {
   try {
     const parsed = parseGPX(xmlString);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlString, 'application/xml');
 
     if (parsed.points.length < 2) {
       showToast('Fichier GPX vide ou invalide');
@@ -630,11 +915,15 @@ function loadGPX(xmlString, filename = null) {
 
     trackData = { ...parsed, stats };
 
-    // Scroll to dashboard
+    // Hide hero section and scroll to dashboard
+    hideHero();
     document.getElementById('dashboard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     // Stats
     updateStats(stats, parsed.name, parsed.date);
+
+    // Map overlay stats
+    updateMapOverlay(stats);
 
     // Map
     drawTrack(parsed.points, currentMetric);
@@ -653,6 +942,13 @@ function loadGPX(xmlString, filename = null) {
 
     // Init chart hover crosshairs
     initChartHover();
+
+    // Save activity if authenticated
+    if (isAuthenticated()) {
+      const actType = parseActivityType(doc);
+      saveActivity(parsed.name, parsed.date, actType, stats, xmlString, filename);
+      showToast(`Trace sauvegardée : ${parsed.name}`);
+    }
 
     showToast(`Trace chargée : ${parsed.name}`);
   } catch (e) {
@@ -779,4 +1075,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindLayerButtons();
   bindMetricButtons();
   bindDemoButtons();
+  bindAuthModal();
+  updateImportButtonVisibility();
+  renderActivities();
 });
