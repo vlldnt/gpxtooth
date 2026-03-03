@@ -982,7 +982,7 @@ function bindFileInputs() {
 
   document.getElementById('fileInput').addEventListener('change', e => {
     handleFile(e.target.files[0]);
-    e.target.value = ''; // reset so same file can be re-loaded
+    e.target.value = '';
   });
 
   document.getElementById('fileInput2').addEventListener('change', e => {
