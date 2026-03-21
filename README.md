@@ -1,50 +1,50 @@
-GPS Dashboard — visualiser et gérer traces GPX / FIT
+# GPXtooth
 
-Résumé
-------
-Petit site web pour afficher et gérer des traces GPS (GPX) et des fichiers FIT (Garmin Forerunner 265).
+Dashboard GPS local pour visualiser et gérer ses traces GPX.
 
-Objectif
---------
-- Afficher toutes les traces et points sur une carte interactive (Leaflet).
-- Basculer entre plusieurs fonds de carte open-source (OpenStreetMap, Stamen, OpenTopoMap, ...).
-- Importer localement des fichiers `.gpx` et `.fit` (exportés depuis Garmin Connect).
-- Dashboard pour chaque trace avec distance, durée, dénivelé, vitesse, fréquence cardiaque si disponible, timestamps.
-- Coloration des tracés par métrique (vitesse, altitude, temps).
+**[Ouvrir GPXtooth](https://vlldnt.github.io/gpxtooth/)** — importe tes fichiers `.gpx` et commence à explorer.
 
-Stack technique
----------------
-- Frontend: JavaScript (HTML/CSS/JS), Leaflet pour la carte. Framework optionnel: Vue 3 ou React.
-- Traitement FIT: Python (script ou petit service) pour parser/converter les fichiers `.fit` en GeoJSON/GPX.
-- Parsing GPX: bibliothèques JS côté client (`togeojson` / `leaflet-gpx`) ou conversion côté serveur.
+## Utilisation
 
-Install & usage rapide (dev)
----------------------------
-1. Prérequis: Node.js (>=16) pour dev frontend, Python 3.10+ pour conversion FIT.
+1. Ouvre [vlldnt.github.io/gpxtooth](https://vlldnt.github.io/gpxtooth/)
+2. Clique sur **Importer** ou glisse-dépose un fichier `.gpx`
+3. Donne un nom à ta trace et c'est parti
 
-Remarque sur les versions
-------------------------
-Utiliser les dernières versions disponibles (tag `latest`) pour Node.js, les paquets npm et les dépendances Python, sauf contrainte spécifique. Préférer la version LTS actuelle pour Node.js en production.
-2. Installer dépendances frontend (ex. avec npm):
+Tes traces sont sauvegardées dans ton navigateur. Elles restent disponibles d'une session à l'autre, et personne d'autre n'y a accès.
 
-```bash
-npm install leaflet togeojson
+## Fonctionnalités
+
+- **Carte interactive** — Leaflet avec fonds OSM, OpenTopoMap et Satellite (ESRI)
+- **Import GPX** — drag & drop ou sélecteur de fichier, avec choix du nom
+- **Colorisation** — trace colorée par vitesse, altitude, fréquence cardiaque ou couleur unie
+- **Graphiques** — FC, vitesse et altitude avec crosshair synchronisé carte/graphiques
+- **Sidebar** — liste des traces avec filtres par type (VTT, running, hiking, cycling…)
+- **Plein écran** — carte fullscreen avec graphiques superposés, header auto-hide
+- **100 % local** — aucune donnée envoyée, tout reste dans le `localStorage` du navigateur
+
+## Structure
+
+```
+gpxtooth/
+├── index.html
+├── style.css
+├── vtt.gpx
+└── scripts/
+    ├── gpx-parser.js
+    ├── map.js
+    ├── charts.js
+    ├── storage.js
+    ├── ui.js
+    └── app.js
 ```
 
-3. Exemple rapide pour traiter un `.fit` en Python (installer `fitparse`):
+## Stack
 
-```bash
-python -m pip install fitparse
-# puis exécuter le script de conversion fit -> gpx/geojson
-```
+- HTML / CSS / JS vanilla (aucun framework)
+- [Leaflet](https://leafletjs.com/) pour la carte
+- Canvas API pour les graphiques
+- localStorage pour la persistance
 
-Confidentialité
----------------
-Le traitement peut se faire localement (recommendé) pour éviter l'upload de données sensibles de localisation.
+## Confidentialité
 
-Prochaines étapes
-------------------
-- Proposer l'architecture détaillée et les dépendances.
-- Implémenter un MVP: import GPX côté client + affichage Leaflet.
-- Ajouter conversion/parse `.fit` en Python et intégration au frontend.
-
+Aucune donnée n'est envoyée à un serveur. Chaque navigateur conserve ses propres traces dans son `localStorage`, isolées des autres utilisateurs.
