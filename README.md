@@ -48,3 +48,7 @@ gpxtooth/
 ## Confidentialité
 
 Aucune donnée n'est envoyée à un serveur. Chaque navigateur conserve ses propres traces dans son `localStorage`, isolées des autres utilisateurs.
+
+## Auteur
+
+[@vlldnt](https://github.com/vlldnt) — [vieilledent.eu](https://vieilledent.eu)

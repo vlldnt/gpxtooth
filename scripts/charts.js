@@ -15,9 +15,11 @@ function drawChart(canvasId, data, color, fillColor, chartKey = '') {
 
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
+  // Reset inline height so CSS controls the layout size
+  canvas.style.height = '';
   const rect = canvas.getBoundingClientRect();
   const W = rect.width || canvas.parentElement.clientWidth;
-  const H = parseInt(canvas.getAttribute('height')) || 140;
+  const H = rect.height || 90;
 
   canvas.width = W * dpr;
   canvas.height = H * dpr;

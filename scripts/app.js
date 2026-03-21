@@ -24,9 +24,8 @@ function displayGPX(xmlString, displayName) {
 
     trackData = { ...parsed, stats };
 
-    hideHero();
     document
-      .querySelector('.panel--map')
+      .getElementById('dashboard')
       .scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     updateStats(stats, displayName || parsed.name, parsed.date);
@@ -105,24 +104,6 @@ function bindFileInputs() {
   document.getElementById('fileInput').addEventListener('change', (e) => {
     handleFile(e.target.files[0]);
     e.target.value = '';
-  });
-
-  document.getElementById('fileInput2').addEventListener('change', (e) => {
-    handleFile(e.target.files[0]);
-    e.target.value = '';
-  });
-
-  // Drag and drop
-  const dz = document.getElementById('dropZone');
-  dz.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dz.classList.add('drag-over');
-  });
-  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
-  dz.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dz.classList.remove('drag-over');
-    handleFile(e.dataTransfer.files[0]);
   });
 }
 
@@ -237,23 +218,23 @@ function setupImportButton() {
 // ── Auto-hide nav when map section is in view ─────
 function initNavAutoHide() {
   const nav = document.querySelector('.nav');
-  const mapPanel = document.querySelector('.panel--map');
-  if (!nav || !mapPanel) return;
+  const dashboard = document.getElementById('dashboard');
+  if (!nav || !dashboard) return;
 
   const io = new IntersectionObserver(
     (entries) => {
       entries.forEach((e) => {
-        if (e.isIntersecting && trackData) {
+        if (e.isIntersecting) {
           nav.classList.add('nav--hidden');
         } else {
           nav.classList.remove('nav--hidden');
         }
       });
     },
-    { threshold: 0.3 },
+    { threshold: 0.15 },
   );
 
-  io.observe(mapPanel);
+  io.observe(dashboard);
 }
 
 // ── Resize ────────────────────────────────────────
