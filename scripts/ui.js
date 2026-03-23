@@ -151,12 +151,35 @@ function renderSidebar(filter) {
         month: 'short',
         year: 'numeric',
       });
+
+      // Allure (min/km) et temps
+      let paceStr = '—';
+      let durStr = '—';
+      if (a.stats) {
+        if (a.stats.dist > 0 && a.stats.durationMs > 0) {
+          const totalMin = a.stats.durationMs / 60000;
+          const paceMin = totalMin / a.stats.dist;
+          const pM = Math.floor(paceMin);
+          const pS = Math.round((paceMin - pM) * 60);
+          paceStr = `${pM}'${String(pS).padStart(2, '0')}`;
+        }
+        if (a.stats.durationMs > 0) {
+          const h = Math.floor(a.stats.durationMs / 3600000);
+          const m = Math.floor((a.stats.durationMs % 3600000) / 60000);
+          durStr = `${h}h${String(m).padStart(2, '0')}`;
+        }
+      }
+
       return `
       <li class="sidebar__item" data-id="${a.id}">
-        <div class="sidebar__item-name">${a.name}</div>
-        <div class="sidebar__item-meta">
+        <div class="sidebar__item-top">
+          <span class="sidebar__item-name">${a.name}</span>
           <span class="sidebar__item-type ${a.type}">${a.type}</span>
+        </div>
+        <div class="sidebar__item-meta">
           <span>${dateStr}</span>
+          <span>${paceStr}/km</span>
+          <span>${durStr}</span>
         </div>
       </li>`;
     })

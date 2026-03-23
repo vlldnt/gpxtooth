@@ -695,6 +695,15 @@ button {
   border-left: 3px solid var(--c-green);
 }
 
+.sidebar__item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .4rem;
+  margin-bottom: .2rem;
+  min-width: 0;
+}
+
 .sidebar__item-name {
   font-size: .8125rem;
   font-weight: 600;
@@ -702,14 +711,19 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: .2rem;
+  min-width: 0;
+}
+
+.sidebar__item-top .sidebar__item-type {
+  flex-shrink: 0;
 }
 
 .sidebar__item-meta {
   display: flex;
   align-items: center;
-  gap: .5rem;
-  font-size: .7rem;
+  flex-wrap: wrap;
+  gap: .15rem .4rem;
+  font-size: .65rem;
   color: var(--c-text-3);
 }
 
