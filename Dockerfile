@@ -1,7 +1,10 @@
 FROM nginx:1.27-alpine
 
-# Copier tous les fichiers vers la racine web de Nginx
-COPY . /var/www/html/
+# Copier les fichiers web vers la racine de Nginx
+COPY index.html style.css /var/www/html/
+COPY scripts/ /var/www/html/scripts/
+COPY assets/ /var/www/html/assets/
+COPY data/ /var/www/html/data/
 
 # Copier la config Nginx du site (conteneur)
 COPY nginx.conf /etc/nginx/conf.d/default.conf

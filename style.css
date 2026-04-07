@@ -199,7 +199,6 @@ button {
 
 .nav__logo {
   color: var(--c-green);
-  animation: spin-slow 24s linear infinite;
   display: flex;
 }
 

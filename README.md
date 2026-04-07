@@ -2,11 +2,11 @@
 
 Dashboard GPS local pour visualiser et gérer ses traces GPX.
 
-**[Ouvrir GPXtooth](https://vlldnt.github.io/gpxtooth/)** — importe tes fichiers `.gpx` et commence à explorer.
+**[Ouvrir GPXtooth](https://vieilledent.eu/gpxtooth/)** — importe tes fichiers `.gpx` et commence à explorer.
 
 ## Utilisation
 
-1. Ouvre [vlldnt.github.io/gpxtooth](https://vlldnt.github.io/gpxtooth/)
+1. Ouvre [vieilledent.eu/gpxtooth](https://vieilledent.eu/gpxtooth/)
 2. Clique sur **Importer** ou glisse-dépose un fichier `.gpx`
 3. Donne un nom à ta trace et c'est parti
 
@@ -28,14 +28,21 @@ Tes traces sont sauvegardées dans ton navigateur. Elles restent disponibles d'u
 gpxtooth/
 ├── index.html
 ├── style.css
-├── vtt.gpx
-└── scripts/
-    ├── gpx-parser.js
-    ├── map.js
-    ├── charts.js
-    ├── storage.js
-    ├── ui.js
-    └── app.js
+├── scripts/
+│   ├── gpx-parser.js
+│   ├── map.js
+│   ├── charts.js
+│   ├── storage.js
+│   ├── ui.js
+│   └── app.js
+├── assets/
+│   └── gpxtooth.png
+├── data/
+│   └── vtt.gpx
+├── Dockerfile
+├── docker-compose.yml
+├── nginx.conf
+└── README.md
 ```
 
 ## Stack
@@ -44,6 +51,26 @@ gpxtooth/
 - [Leaflet](https://leafletjs.com/) pour la carte
 - Canvas API pour les graphiques
 - localStorage pour la persistance
+- **Déploiement** — Docker + Nginx
+
+## Déploiement
+
+### En local
+
+```bash
+docker-compose up -d --build
+```
+
+Accès : `http://localhost:8081`
+
+### Sur VPS
+
+Le projet est déployé via Docker sur [vieilledent.eu/gpxtooth](https://vieilledent.eu/gpxtooth/) avec :
+- **Container** : Nginx 1.27-alpine servant le contenu du dossier `public/`
+- **Config Nginx** : routing, cache headers, healthcheck
+- **Logs** : rotation automatique (10m max par fichier, 3 fichiers)
+
+Voir `docker-compose.yml` et `nginx.conf` pour les détails.
 
 ## Confidentialité
 
