@@ -202,12 +202,6 @@ button {
   display: flex;
 }
 
-@keyframes spin-slow {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .nav__wordmark {
   font-size: 1.05rem;
   font-weight: 700;
