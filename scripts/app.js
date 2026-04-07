@@ -110,12 +110,13 @@ function bindFileInputs() {
 // ── Load demo GPX file ────────────────────────────
 async function loadDemoFile() {
   try {
-    const res = await fetch('vtt.gpx');
+    const res = await fetch('../data/vtt.gpx');
     if (!res.ok) throw new Error('not found');
     const txt = await res.text();
     importGPX(txt, 'vtt.gpx');
   } catch (e) {
-    showToast('Fichier démo introuvable (vtt.gpx)');
+    console.error('Demo file error:', e);
+    showToast('Fichier démo introuvable (../data/vtt.gpx)');
   }
 }
 
@@ -259,4 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupImportButton();
   renderSidebar();
   initNavAutoHide();
+
+  // Auto-load demo file on startup
+  loadDemoFile();
 });
