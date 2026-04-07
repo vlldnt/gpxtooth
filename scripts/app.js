@@ -8,9 +8,11 @@
 // ── State ────────────────────────────────────────
 let trackData = null;
 let currentMetric = 'speed';
+let displayedActivities = []; // Tracks currently displayed on map
+let selectedActivityId = null; // Single selected activity, or null for "show all"
 
 // ── Display a GPX trace (view only, no save) ─────
-function displayGPX(xmlString, displayName) {
+function displayGPX(xmlString, displayName, activityId = null) {
   try {
     const parsed = parseGPX(xmlString);
 
@@ -23,6 +25,9 @@ function displayGPX(xmlString, displayName) {
     if (!stats) return;
 
     trackData = { ...parsed, stats };
+    if (activityId) {
+      selectedActivityId = activityId;
+    }
 
     document
       .getElementById('dashboard')
@@ -68,11 +73,9 @@ function importGPX(xmlString, filename) {
     saveActivity(finalName, parsed.date, actType, stats, xmlString, filename);
     showToast(`Trace sauvegardée : ${finalName}`);
 
-    // Display it
-    displayGPX(xmlString, finalName);
-
-    // Highlight in sidebar
-    highlightSidebarItem(null);
+    // Display all activities
+    const allActivities = loadActivities();
+    displayMultipleActivities(allActivities);
   } catch (e) {
     console.error('GPX Error:', e);
     showToast("Erreur lors de l'import GPX");
@@ -248,6 +251,37 @@ window.addEventListener('resize', () => {
   }, 200);
 });
 
+// ── Display multiple activities ──────────────────
+function displayMultipleActivities(activities) {
+  displayedActivities = activities;
+  selectedActivityId = null;
+
+  if (activities.length === 0) {
+    hideHero();
+    drawMultipleTracks([], currentMetric);
+    return;
+  }
+
+  // Hide hero and show first activity's stats
+  hideHero();
+  const firstActivity = activities[0];
+  try {
+    const parsed = parseGPX(firstActivity.gpxContent);
+    const stats = firstActivity.stats;
+
+    trackData = { ...parsed, stats };
+    updateStats(stats, firstActivity.name, new Date(firstActivity.date));
+    updateMapOverlay(stats);
+
+    // Draw all traces on the map
+    drawMultipleTracks(activities, currentMetric);
+    redrawAllCharts();
+    initChartHover();
+  } catch (e) {
+    console.error('Error displaying multiple activities:', e);
+  }
+}
+
 // ── Boot ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
@@ -260,4 +294,10 @@ document.addEventListener('DOMContentLoaded', () => {
   setupImportButton();
   renderSidebar();
   initNavAutoHide();
+
+  // Load and display all saved activities on startup
+  const activities = loadActivities();
+  if (activities.length > 0) {
+    displayMultipleActivities(activities);
+  }
 });

@@ -112,6 +112,83 @@ function updateLegend(metric, min, max) {
   maxEl.textContent = max.toFixed(0) + '\u202f' + (units[metric] ?? '');
 }
 
+// ── Color palette for multiple traces ───────────
+const TRACE_COLORS = [
+  '#3b82f6', // Blue
+  '#06b6d4', // Cyan
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#ef4444', // Red
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#14b8a6', // Teal
+  '#f97316', // Orange
+  '#6366f1', // Indigo
+];
+
+function getTraceColor(index) {
+  return TRACE_COLORS[index % TRACE_COLORS.length];
+}
+
+// ── Draw multiple activities on map ──────────────
+function drawMultipleTracks(activities, metric) {
+  // Clear old layers
+  trackLayers.forEach((l) => map.removeLayer(l));
+  trackLayers = [];
+
+  if (activities.length === 0) {
+    // Show empty state
+    const empty = document.getElementById('mapEmpty');
+    if (empty) empty.style.display = 'block';
+    document.getElementById('legend').setAttribute('hidden', '');
+    return;
+  }
+
+  // Hide empty state
+  const empty = document.getElementById('mapEmpty');
+  if (empty) empty.style.display = 'none';
+
+  // For multiple traces with solid colors
+  let allBounds = [];
+
+  activities.forEach((activity, actIdx) => {
+    try {
+      const parsed = parseGPX(activity.gpxContent);
+      const points = parsed.points;
+
+      if (points.length < 2) return;
+
+      const color = getTraceColor(actIdx);
+
+      // Draw colored polyline for this activity
+      const line = L.polyline(
+        points.map((p) => [p.lat, p.lon]),
+        {
+          color: color,
+          weight: 3,
+          opacity: 0.7,
+          lineCap: 'round',
+          lineJoin: 'round',
+        },
+      ).addTo(map);
+
+      trackLayers.push(line);
+      allBounds.push(...points.map((p) => [p.lat, p.lon]));
+    } catch (e) {
+      console.error('Error drawing activity:', e);
+    }
+  });
+
+  // Hide legend for multiple traces view
+  document.getElementById('legend').setAttribute('hidden', '');
+
+  // Fit bounds to show all traces
+  if (allBounds.length > 0) {
+    const bounds = L.latLngBounds(allBounds);
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }
+}
+
 // ── Draw map track ────────────────────────────────
 function drawTrack(points, metric) {
   // Clear old layers

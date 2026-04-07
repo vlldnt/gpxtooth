@@ -128,7 +128,15 @@ function renderSidebar(filter) {
       .join('');
 
     filtersEl.querySelectorAll('.sidebar__filter-btn').forEach((btn) => {
-      btn.addEventListener('click', () => renderSidebar(btn.dataset.type));
+      btn.addEventListener('click', () => {
+        const filterType = btn.dataset.type;
+        renderSidebar(filterType);
+        // Show all traces of the selected type
+        const activities = filterType === 'all'
+          ? loadActivities()
+          : loadActivities().filter((a) => a.type === filterType);
+        displayMultipleActivities(activities);
+      });
     });
   }
 
@@ -190,8 +198,20 @@ function renderSidebar(filter) {
     const activity = filtered.find((a) => a.id === id);
 
     item.addEventListener('click', () => {
-      highlightSidebarItem(id);
-      displayGPX(activity.gpxContent, activity.name);
+      // Toggle selection: if clicking the same item, show all; otherwise show only this one
+      if (selectedActivityId === id) {
+        // Clicking same item again → show all
+        selectedActivityId = null;
+        const allActivities = sidebarFilter === 'all'
+          ? loadActivities()
+          : loadActivities().filter((a) => a.type === sidebarFilter);
+        displayMultipleActivities(allActivities);
+        highlightSidebarItem(null);
+      } else {
+        // Clicking different item → show only this one
+        highlightSidebarItem(id);
+        displayGPX(activity.gpxContent, activity.name, id);
+      }
     });
   });
 }

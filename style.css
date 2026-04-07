@@ -1928,3 +1928,13 @@ button {
 .panel--map.fullscreen #btnFullscreen svg path {
   d: path("M9 9H4V4h5M15 9h5V4h-5M9 15H4v5h5M15 15h5v5h-5");
 }
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE OPTIMIZATIONS
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Hide map overlay stats on mobile */
+  .map-overlay-stats {
+    display: none;
+  }
+}
