@@ -8,6 +8,7 @@
 // ── Map state ─────────────────────────────────────
 let map = null;
 let trackLayers = [];
+let backgroundLayers = new Map(); // activity id → polyline (traces non sélectionnées)
 let currentTileLayer = null;
 let tooltipEl = null;
 let snapMarker = null;
@@ -35,9 +36,12 @@ function initMap() {
   map = L.map('map', {
     center: [46.5, 2.5],
     zoom: 5,
-    zoomControl: true,
+    zoomControl: false,
     attributionControl: true,
   });
+
+  // Zoom à droite : le panneau traces occupe le coin haut-gauche
+  L.control.zoom({ position: 'topright' }).addTo(map);
 
   setTileLayer('osm');
 
@@ -108,93 +112,85 @@ function updateLegend(metric, min, max) {
     'linear-gradient(90deg, #3b82f6, #22d3ee, #00e578, #fbbf24, #f87171)';
 
   const units = { speed: 'km/h', elevation: 'm', hr: 'bpm' };
-  minEl.textContent = min.toFixed(0) + '\u202f' + (units[metric] ?? '');
-  maxEl.textContent = max.toFixed(0) + '\u202f' + (units[metric] ?? '');
+  minEl.textContent = min.toFixed(0) + ' ' + (units[metric] ?? '');
+  maxEl.textContent = max.toFixed(0) + ' ' + (units[metric] ?? '');
 }
 
-// ── Color palette for multiple traces ───────────
+// ── Vivid color palette for traces ───────────────
 const TRACE_COLORS = [
-  '#3b82f6', // Blue
-  '#06b6d4', // Cyan
-  '#10b981', // Emerald
-  '#f59e0b', // Amber
-  '#ef4444', // Red
-  '#8b5cf6', // Violet
-  '#ec4899', // Pink
-  '#14b8a6', // Teal
-  '#f97316', // Orange
-  '#6366f1', // Indigo
+  '#ff2d95', // Rose
+  '#00e5ff', // Cyan
+  '#ffd600', // Jaune
+  '#00e676', // Vert
+  '#ff6d00', // Orange
+  '#2979ff', // Bleu
+  '#d500f9', // Violet
+  '#aeea00', // Lime
+  '#ff1744', // Rouge
+  '#1de9b6', // Turquoise
 ];
 
 function getTraceColor(index) {
   return TRACE_COLORS[index % TRACE_COLORS.length];
 }
 
-// ── Draw multiple activities on map ──────────────
-function drawMultipleTracks(activities, metric) {
-  // Clear old layers
+// ── Layer helpers ─────────────────────────────────
+function clearTrackLayers() {
   trackLayers.forEach((l) => map.removeLayer(l));
   trackLayers = [];
+  backgroundLayers.clear();
+  snapMarker = null;
+}
 
-  if (activities.length === 0) {
-    // Show empty state
-    const empty = document.getElementById('mapEmpty');
-    if (empty) empty.style.display = 'block';
-    document.getElementById('legend').setAttribute('hidden', '');
-    return;
-  }
-
-  // Hide empty state
+function setMapEmpty(isEmpty) {
   const empty = document.getElementById('mapEmpty');
-  if (empty) empty.style.display = 'none';
+  if (empty) empty.style.display = isEmpty ? '' : 'none';
+  if (isEmpty) document.getElementById('legend').setAttribute('hidden', '');
+}
 
-  // For multiple traces with solid colors
-  let allBounds = [];
-
-  activities.forEach((activity, actIdx) => {
-    try {
-      const parsed = parseGPX(activity.gpxContent);
-      const points = parsed.points;
-
-      if (points.length < 2) return;
-
-      const color = getTraceColor(actIdx);
-
-      // Draw colored polyline for this activity
-      const line = L.polyline(
-        points.map((p) => [p.lat, p.lon]),
-        {
-          color: color,
-          weight: 3,
-          opacity: 0.7,
-          lineCap: 'round',
-          lineJoin: 'round',
-        },
-      ).addTo(map);
-
-      trackLayers.push(line);
-      allBounds.push(...points.map((p) => [p.lat, p.lon]));
-    } catch (e) {
-      console.error('Error drawing activity:', e);
-    }
-  });
-
-  // Hide legend for multiple traces view
-  document.getElementById('legend').setAttribute('hidden', '');
-
-  // Fit bounds to show all traces
-  if (allBounds.length > 0) {
-    const bounds = L.latLngBounds(allBounds);
-    map.fitBounds(bounds, { padding: [40, 40] });
+function fitToPoints(pointLists) {
+  const latlngs = pointLists.flat().map((p) => [p.lat, p.lon]);
+  if (latlngs.length > 0) {
+    map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40] });
   }
 }
 
-// ── Draw map track ────────────────────────────────
-function drawTrack(points, metric) {
-  // Clear old layers
-  trackLayers.forEach((l) => map.removeLayer(l));
-  trackLayers = [];
+// ── Non-selected traces (transparent) ─────────────
+// tracks : [{ id, points, color }] — clic sur une trace = sélection
+function drawBackgroundTracks(tracks, onSelect) {
+  for (const { id, points, color } of tracks) {
+    if (points.length < 2) continue;
+    const line = L.polyline(
+      points.map((p) => [p.lat, p.lon]),
+      {
+        color,
+        weight: 3,
+        opacity: 0.35,
+        lineCap: 'round',
+        lineJoin: 'round',
+      },
+    ).addTo(map);
+    line.on('click', () => onSelect(id));
+    trackLayers.push(line);
+    backgroundLayers.set(id, line);
+  }
+}
 
+// Survol d'une trace dans la liste : aperçu opaque sur la carte
+function previewTrack(id, active) {
+  const line = backgroundLayers.get(id);
+  if (!line) return;
+  if (active) {
+    line.setStyle({ opacity: 0.95, weight: 5 });
+    line.bringToFront();
+  } else {
+    line.setStyle({ opacity: 0.35, weight: 3 });
+    line.bringToBack();
+  }
+}
+
+// ── Draw selected track (opaque) ──────────────────
+function drawTrack(points, metric, color = '#00e578') {
   if (points.length < 2) return;
 
   // Get metric values for normalization
@@ -203,11 +199,25 @@ function drawTrack(points, metric) {
   else if (metric === 'elevation') vals = points.map((p) => p.ele ?? 0);
   else if (metric === 'hr') vals = points.map((p) => p.hr ?? 0);
 
-  const min = metric !== 'none' ? Math.min(...vals.filter((v) => v > 0)) : 0;
-  const max = metric !== 'none' ? Math.max(...vals) : 1;
+  const positive = vals.filter((v) => v > 0);
+  const min = metric !== 'none' && positive.length ? Math.min(...positive) : 0;
+  const max = metric !== 'none' && positive.length ? Math.max(...vals) : 1;
   const range = max - min || 1;
 
   updateLegend(metric, min, max);
+
+  const latlngs = points.map((p) => [p.lat, p.lon]);
+
+  // Contour sombre sous la trace : lisible sur tous les fonds de carte
+  const casing = L.polyline(latlngs, {
+    color: '#000000',
+    weight: 8,
+    opacity: 0.35,
+    lineCap: 'round',
+    lineJoin: 'round',
+    interactive: false,
+  }).addTo(map);
+  trackLayers.push(casing);
 
   // Draw colored segments
   if (metric !== 'none') {
@@ -215,7 +225,7 @@ function drawTrack(points, metric) {
       const a = points[i - 1];
       const b = points[i];
       const ratio = (vals[i] - min) / range;
-      const color = getGradientColor(Math.max(0, Math.min(1, ratio)));
+      const segColor = getGradientColor(Math.max(0, Math.min(1, ratio)));
 
       const seg = L.polyline(
         [
@@ -223,26 +233,25 @@ function drawTrack(points, metric) {
           [b.lat, b.lon],
         ],
         {
-          color,
+          color: segColor,
           weight: 4,
-          opacity: 0.9,
+          opacity: 1,
           lineCap: 'round',
           lineJoin: 'round',
+          interactive: false,
         },
       ).addTo(map);
 
       trackLayers.push(seg);
     }
   } else {
-    const line = L.polyline(
-      points.map((p) => [p.lat, p.lon]),
-      {
-        color: '#00e578',
-        weight: 4,
-        opacity: 0.9,
-        lineCap: 'round',
-      },
-    ).addTo(map);
+    const line = L.polyline(latlngs, {
+      color,
+      weight: 4,
+      opacity: 1,
+      lineCap: 'round',
+      interactive: false,
+    }).addTo(map);
     trackLayers.push(line);
   }
 
@@ -292,13 +301,7 @@ function drawTrack(points, metric) {
 
   trackLayers.push(mStart, mEnd);
 
-  // Fit bounds
-  const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lon]));
-  map.fitBounds(bounds, { padding: [40, 40] });
-
-  // Hide empty state
-  const empty = document.getElementById('mapEmpty');
-  if (empty) empty.style.display = 'none';
+  setMapEmpty(false);
 
   // Interactive hover tooltip
   addHoverLayer(points);

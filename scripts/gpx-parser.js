@@ -146,6 +146,75 @@ function calcStats(points) {
   };
 }
 
+// ── Côtes (pente moyenne par montée) ─────────────
+// Une côte va du point bas jusqu'au sommet : elle se termine dès qu'on
+// redescend de plus de CLIMB_TOLERANCE_M sous le sommet (filtre le bruit GPS).
+// Pente moyenne = D+ de la côte / longueur × 100 (1 % = 1 m pour 100 m).
+// Les descentes et le plat entre les côtes sont ignorés (pente 0).
+const CLIMB_TOLERANCE_M = 10;
+const CLIMB_MIN_GAIN_M = 15;
+
+function calcClimbs(points) {
+  // Distance cumulée en mètres
+  const cum = [0];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    cum.push(cum[i - 1] + haversine(a.lat, a.lon, b.lat, b.lon) * 1000);
+  }
+
+  const climbs = [];
+  const closeClimb = (startIdx, endIdx) => {
+    const gain = points[endIdx].ele - points[startIdx].ele;
+    const length = cum[endIdx] - cum[startIdx];
+    if (gain < CLIMB_MIN_GAIN_M || length <= 0) return;
+    climbs.push({
+      startIdx,
+      endIdx,
+      startKm: cum[startIdx] / 1000,
+      lengthKm: length / 1000,
+      gain,
+      avg: (gain / length) * 100,
+    });
+  };
+
+  let climbing = false;
+  let lowIdx = 0;
+  let peakIdx = 0;
+
+  for (let i = 1; i < points.length; i++) {
+    const ele = points[i].ele;
+    if (!climbing) {
+      if (ele < points[lowIdx].ele) lowIdx = i;
+      else if (ele - points[lowIdx].ele >= CLIMB_TOLERANCE_M) {
+        climbing = true;
+        peakIdx = i;
+      }
+    } else if (ele >= points[peakIdx].ele) {
+      peakIdx = i;
+    } else if (points[peakIdx].ele - ele >= CLIMB_TOLERANCE_M) {
+      closeClimb(lowIdx, peakIdx);
+      climbing = false;
+      lowIdx = i;
+    }
+  }
+  if (climbing) closeClimb(lowIdx, peakIdx);
+
+  // Chaque point porte la pente moyenne de sa côte (0 hors côte)
+  for (const p of points) {
+    p._grade = 0;
+    p._climb = null;
+  }
+  climbs.forEach((c, n) => {
+    for (let j = c.startIdx; j <= c.endIdx; j++) {
+      points[j]._grade = c.avg;
+      points[j]._climb = n;
+    }
+  });
+
+  return climbs;
+}
+
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;

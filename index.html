@@ -13,6 +13,9 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <link rel="shortcut icon" href="assets/logoGPXTooth.png" type="image/x-icon">
 
+  <!-- Thème clair / sombre : appliqué avant l'affichage pour éviter un flash -->
+  <script src="scripts/theme.js"></script>
+
   <!-- Google Fonts : polices JetBrains Mono (code) et Inter (texte) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -27,8 +30,8 @@
 <body>
 
   <!-- ━━━ NAVBAR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       Barre de navigation fixe en haut de page.
-       Contient : logo, liens internes, bouton d'import et bouton de connexion.
+       Barre du haut, toujours visible.
+       Contient : logo, bouton d'import, thème clair/sombre, connexion.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
   <nav class="nav">
 
@@ -40,353 +43,400 @@
       <span class="nav__wordmark">GPX<em>tooth</em></span>
     </div>
 
-    <!-- Liens de navigation interne (ancres vers les sections) -->
-    <ul class="nav__links" role="list">
-      <li><a href="#dashboard">Dashboard</a></li>
-      <li><a href="#features">Fonctionnalités</a></li>
-    </ul>
+    <div class="nav__actions">
+      <!-- Bouton "Importer" (déclenche l'ouverture du sélecteur de fichier) -->
+      <button id="btnImport" class="btn btn--primary btn--sm">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        <span class="btn__label">Importer</span>
+      </button>
 
-    <!-- Bouton "Importer" dans la navbar (déclenche l'ouverture du sélecteur de fichier) -->
-    <button id="btnImport" class="btn btn--primary btn--sm">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-      </svg>
-      Importer
-    </button>
+      <!-- Thème clair / sombre -->
+      <button class="icon-btn js-theme-toggle" type="button" title="Thème clair / sombre"
+        aria-label="Basculer entre thème clair et sombre">
+        <svg class="icon-sun" width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          aria-hidden="true">
+          <circle cx="12" cy="12" r="4" stroke-width="2" />
+          <path stroke-linecap="round" stroke-width="2"
+            d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
+        </svg>
+        <svg class="icon-moon" width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+        </svg>
+      </button>
+
+      <!-- Connexion propriétaire (icône nuage verte une fois connecté) -->
+      <button class="icon-btn js-auth-btn" type="button" title="Connexion" aria-label="Connexion">
+        <svg class="icon-user" width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+        <svg class="icon-cloud" width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+        </svg>
+      </button>
+    </div>
 
   </nav>
 
-  <!-- ━━━ HERO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       Section d'accueil (landing) visible en premier.
-       Contient : fond animé, titre, description, boutons CTA, mini-stats.
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-  <section class="hero">
-
-    <!-- Fond décoratif (grille + blobs animés en CSS) — purement visuel -->
-    <div class="hero__bg" aria-hidden="true">
-      <div class="hero__grid"></div>
-      <div class="hero__blob hero__blob--1"></div>
-      <div class="hero__blob hero__blob--2"></div>
-      <div class="hero__blob hero__blob--3"></div>
-    </div>
-
-    <!-- Contenu principal du hero -->
-    <div class="hero__content">
-
-      <!-- Badge d'accroche (petit bandeau vert avec un point) -->
-      <div class="badge anim-fade">
-        <span class="badge__dot"></span>
-        GPX · Leaflet · Open Source
-      </div>
-
-      <!-- Titre principal avec texte en dégradé -->
-      <h1 class="hero__title anim-up">
-        Visualise tes<br />
-        <span class="text--gradient">traces GPS</span>
-      </h1>
-
-      <!-- Sous-titre / description courte -->
-      <p class="hero__desc anim-up" style="--d:.1s">
-        Dashboard interactif pour explorer tes fichiers
-        <code>.gpx</code> —
-        carte, stats, dénivelé, fréquence cardiaque, tout en local.
-      </p>
-
-      <!-- Boutons d'action (CTA) -->
-      <div class="hero__actions anim-up" style="--d:.2s">
-        <!-- Bouton principal : ouvre le sélecteur de fichier GPX -->
-        <button id="btnImportHero" class="btn btn--primary btn--lg">
-          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-          Importer un fichier GPX
-        </button>
-        <!-- Input fichier caché (sr-only), déclenché par les boutons d'import -->
-        <input id="fileInput" type="file" accept=".gpx" class="sr-only" />
-        <!-- Bouton secondaire : charge un fichier GPX de démo -->
-        <button id="btnDemo" class="btn btn--ghost btn--lg">Voir la démo →</button>
-      </div>
-    </div>
-
-  </section>
+  <!-- Input fichier caché (sr-only), déclenché par les boutons d'import -->
+  <input id="fileInput" type="file" accept=".gpx" class="sr-only" />
 
   <!-- ━━━ DASHBOARD ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       Section principale du tableau de bord.
-       Contient : panneau carte (Leaflet) + 3 graphiques (FC, vitesse, altitude).
+       SPA plein écran (pas de scroll de page).
+       Contient : carte + panneau traces en surimpression, 4 graphiques,
+       et l'écran d'accueil en overlay quand il n'y a aucune trace.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-  <section id="dashboard" class="dashboard">
-    <div class="dashboard__layout">
+  <main id="dashboard" class="dashboard">
 
-      <!-- ─── SIDEBAR TRACES ───────────────────────────── -->
-      <aside class="sidebar glass-card" id="sidebar">
-        <div class="sidebar__header">
-          <h3 class="sidebar__title">Traces</h3>
-          <span class="sidebar__count" id="sidebarCount">0</span>
+    <!-- ─── PANNEAU CARTE ─────────────────────────────
+         - Sélecteur de fond de carte (OSM / Topo / Satellite)
+         - Panneau traces (liste + filtre par type) sur la carte
+         - Overlay de stats en surimpression sur la carte
+         - Barre d'outils pour coloriser la trace (vitesse, altitude, FC, uni)
+         - Graphiques (grille sur grand écran, carrousel sur petit écran)
+    ──────────────────────────────────────────────── -->
+    <div class="panel panel--map glass-card">
+
+      <!-- En-tête : titre de la trace + sélecteur de tuiles de carte -->
+      <div class="panel__header">
+        <div class="panel__title-group">
+          <div class="icon-pill icon-pill--green">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+          </div>
+          <div>
+            <!-- Nom et date de la trace, mis à jour par app.js à la sélection -->
+            <h2 class="panel__name" id="trackName">Carte interactive</h2>
+            <p class="panel__sub" id="trackDate">Importe un fichier GPX pour commencer</p>
+          </div>
         </div>
-        <div class="sidebar__filters" id="sidebarFilters"></div>
-        <ul class="sidebar__list" id="sidebarList">
-          <li class="sidebar__empty">Aucune trace enregistrée</li>
-        </ul>
-      </aside>
+        <!-- Boutons de changement de fond de carte -->
+        <div class="layer-group" role="group" aria-label="Fond de carte">
+          <button id="btnOSM" class="layer-btn active">OSM</button>
+          <button id="btnTopo" class="layer-btn">Topo</button>
+          <button id="btnSatellite" class="layer-btn">Sat</button>
+        </div>
+        <!-- Bouton plein écran -->
+        <button id="btnFullscreen" class="layer-btn" title="Plein écran" aria-label="Basculer en plein écran">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="fullscreenIcon">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
+          </svg>
+        </button>
+      </div>
 
-      <!-- ─── PANNEAU PRINCIPAL ────────────────────────── -->
-      <div class="dashboard__main">
+      <!-- Zone carte : la carte Leaflet + les panneaux posés dessus -->
+      <div class="map-stage">
+        <!-- Conteneur de la carte Leaflet (initialisé par map.js) -->
+        <div id="map" class="map-container" role="region" aria-label="Carte des traces GPS"></div>
 
-        <!-- ─── PANNEAU CARTE ─────────────────────────────
-           Carte Leaflet avec :
-           - Sélecteur de fond de carte (OSM / Topo / Satellite)
-           - Overlay de stats en surimpression sur la carte
-           - Barre d'outils pour coloriser la trace (vitesse, altitude, FC, uni)
-           - Légende de couleur (gradient min→max)
-      ──────────────────────────────────────────────── -->
-        <div class="panel panel--map glass-card">
+        <!-- Panneau traces : sélection + filtre par type (repliable) -->
+        <aside class="traces-panel" id="tracesPanel" aria-label="Traces">
+          <button class="traces-panel__toggle" id="tracesToggle" type="button" aria-expanded="true"
+            aria-controls="tracesBody">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10" />
+            </svg>
+            <span>Traces</span>
+            <span class="traces-panel__count" id="sidebarCount">0</span>
+            <svg class="traces-panel__chevron" width="14" height="14" fill="none" stroke="currentColor"
+              viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <div class="traces-panel__body" id="tracesBody">
+            <div class="traces-panel__filters" id="sidebarFilters" role="group" aria-label="Filtrer par type"
+              hidden></div>
+            <ul class="traces-panel__list" id="sidebarList">
+              <li class="traces-panel__empty">Aucune trace enregistrée</li>
+            </ul>
+          </div>
+        </aside>
 
-          <!-- En-tête : titre de la trace + sélecteur de tuiles de carte -->
+        <!-- Stats en overlay sur la carte (distance, D+, durée, vitesse, FC) -->
+        <div class="map-overlay-stats" id="mapOverlayStats" hidden>
+          <div class="mos-row"><span class="mos-label">Distance</span><span class="mos-val" id="mos-dist">—</span>
+          </div>
+          <div class="mos-row"><span class="mos-label">D+</span><span class="mos-val" id="mos-elev">—</span></div>
+          <div class="mos-row"><span class="mos-label">Durée</span><span class="mos-val" id="mos-dur">—</span></div>
+          <div class="mos-row"><span class="mos-label">Vitesse</span><span class="mos-val" id="mos-spd">—</span>
+          </div>
+          <div class="mos-row" id="mos-hr-row" style="display: none;"><span class="mos-label">FC moy.</span><span
+              class="mos-val" id="mos-hr">—</span></div>
+        </div>
+      </div>
+
+      <!-- Barre d'outils sous la carte : choix de la métrique de colorisation + légende -->
+      <div class="map-toolbar">
+        <span class="map-toolbar__label">Colorier par</span>
+        <div class="metric-group" role="group" aria-label="Colorisation de la trace">
+          <button class="metric-btn active" data-metric="speed">Vitesse</button>
+          <button class="metric-btn" data-metric="elevation">Altitude</button>
+          <button class="metric-btn" data-metric="hr">FC</button>
+          <button class="metric-btn" data-metric="none">Uni</button>
+        </div>
+        <!-- Légende du gradient de couleurs (masquée jusqu'à la sélection d'une trace) -->
+        <div id="legend" class="legend" aria-hidden="true" hidden>
+          <span class="legend__label" id="legend-min">0</span>
+          <div class="legend__bar" id="legend-bar"></div>
+          <span class="legend__label" id="legend-max">max</span>
+        </div>
+      </div>
+
+      <!-- ─── GRAPHIQUES (carrousel swipe sur petit écran, superposés en plein écran) ── -->
+      <div class="charts-row" id="chartsRow">
+
+        <!-- Graphique 1 : Fréquence cardiaque (FC en bpm) -->
+        <div class="panel glass-card panel--chart">
           <div class="panel__header">
-            <div class="panel__title-group">
-              <div class="icon-pill icon-pill--green">
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                </svg>
-              </div>
-              <div>
-                <!-- Nom et date de la trace, mis à jour par app.js après import -->
-                <h2 class="panel__name" id="trackName">Carte interactive</h2>
-                <p class="panel__sub" id="trackDate">Importe un fichier GPX pour commencer</p>
-              </div>
-            </div>
-            <!-- Boutons de changement de fond de carte -->
-            <div class="layer-group" role="group" aria-label="Fond de carte">
-              <button id="btnOSM" class="layer-btn active">OSM</button>
-              <button id="btnTopo" class="layer-btn">Topo</button>
-              <button id="btnSatellite" class="layer-btn">Sat</button>
-            </div>
-            <!-- Bouton plein écran -->
-            <button id="btnFullscreen" class="layer-btn" title="Plein écran" aria-label="Basculer en plein écran">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="fullscreenIcon">
+            <div class="icon-pill icon-pill--red">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
-            </button>
+            </div>
+            <h2 class="panel__name">Fréquence cardiaque</h2>
+          </div>
+          <div class="chart-wrapper" id="chartWrap-hr">
+            <canvas id="hrChart" class="chart-canvas" height="90"></canvas>
+            <div class="chart-crosshair" id="crosshair-hr"></div>
+          </div>
+          <!-- Valeurs au survol (FC + distance) -->
+          <div class="chart-values" id="chartVals-hr">
+            <span class="cv-item"><span class="cv-label">FC</span><span class="cv-val" id="cv-hr-val">—</span> <span
+                class="cv-unit">bpm</span></span>
+            <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val" id="cv-hr-dist">—</span>
+              <span class="cv-unit">km</span></span>
+          </div>
+        </div>
+
+        <!-- Graphique 2 : Vitesse (km/h) -->
+        <div class="panel glass-card panel--chart">
+          <div class="panel__header">
+            <div class="icon-pill icon-pill--blue">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h2 class="panel__name">Vitesse</h2>
+          </div>
+          <div class="chart-wrapper" id="chartWrap-speed">
+            <canvas id="speedChart" class="chart-canvas" height="90"></canvas>
+            <div class="chart-crosshair" id="crosshair-speed"></div>
+          </div>
+          <!-- Valeurs au survol (vitesse + distance) -->
+          <div class="chart-values" id="chartVals-speed">
+            <span class="cv-item"><span class="cv-label">Vitesse</span><span class="cv-val"
+                id="cv-speed-val">—</span> <span class="cv-unit">km/h</span></span>
+            <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val"
+                id="cv-speed-dist">—</span> <span class="cv-unit">km</span></span>
+          </div>
+        </div>
+
+        <!-- Graphique 3 : Profil altimétrique (altitude en m) -->
+        <div class="panel glass-card panel--chart">
+          <div class="panel__header">
+            <div class="icon-pill icon-pill--orange">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21l5-5 4 4 5-5 4 4" />
+              </svg>
+            </div>
+            <h2 class="panel__name">Profil altimétrique</h2>
+          </div>
+          <div class="chart-wrapper" id="chartWrap-elev">
+            <canvas id="elevChart" class="chart-canvas" height="90"></canvas>
+            <div class="chart-crosshair" id="crosshair-elev"></div>
+          </div>
+          <!-- Valeurs au survol (altitude + distance) -->
+          <div class="chart-values" id="chartVals-elev">
+            <span class="cv-item"><span class="cv-label">Altitude</span><span class="cv-val"
+                id="cv-elev-val">—</span> <span class="cv-unit">m</span></span>
+            <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val" id="cv-elev-dist">—</span>
+              <span class="cv-unit">km</span></span>
+          </div>
+        </div>
+
+        <!-- Graphique 4 : Pente des côtes (%) — 1 % = 1 m de montée pour 100 m -->
+        <div class="panel glass-card panel--chart">
+          <div class="panel__header">
+            <div class="icon-pill icon-pill--purple">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 20h18L21 6z" />
+              </svg>
+            </div>
+            <h2 class="panel__name">Pente des côtes</h2>
+          </div>
+          <div class="chart-wrapper" id="chartWrap-grade">
+            <canvas id="gradeChart" class="chart-canvas" height="90"></canvas>
+            <div class="chart-crosshair" id="crosshair-grade"></div>
+          </div>
+          <!-- Côte au survol (pente moy. · longueur · D+) + nombre de côtes et la plus raide -->
+          <div class="chart-values" id="chartVals-grade">
+            <span class="cv-item"><span class="cv-label">Côte</span><span class="cv-val"
+                id="cv-grade-val">—</span></span>
+            <span class="cv-item"><span class="cv-label">Côtes</span><span class="cv-val"
+                id="cv-climb-count">—</span></span>
+            <span class="cv-item"><span class="cv-label">Plus raide</span><span class="cv-val"
+                id="cv-grade-max">—</span> <span class="cv-unit">% moy.</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Points de navigation du carrousel (petit écran) -->
+      <div class="charts-dots" id="chartsDots"></div>
+    </div> <!-- /panel--map -->
+
+    <!-- ━━━ ACCUEIL (overlay) ━━━━━━━━━━━━━━━━━━━━━━━━━
+         Affiché par-dessus la carte quand il n'y a aucune trace.
+         Contient : titre, description, boutons d'import/démo, fonctionnalités, liens.
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+    <section class="hero hidden" id="hero" aria-labelledby="heroTitle">
+
+      <!-- Fond décoratif (grille + blobs animés en CSS) — purement visuel -->
+      <div class="hero__bg" aria-hidden="true">
+        <div class="hero__grid"></div>
+        <div class="hero__blob hero__blob--1"></div>
+        <div class="hero__blob hero__blob--2"></div>
+        <div class="hero__blob hero__blob--3"></div>
+      </div>
+
+      <div class="hero__content">
+
+        <!-- Badge d'accroche (petit bandeau vert avec un point) -->
+        <div class="badge anim-fade">
+          <span class="badge__dot"></span>
+          GPX · Leaflet · Open Source
+        </div>
+
+        <!-- Titre principal avec texte en dégradé -->
+        <h1 class="hero__title anim-up" id="heroTitle">
+          Visualise tes<br />
+          <span class="text--gradient">traces GPS</span>
+        </h1>
+
+        <!-- Sous-titre / description courte -->
+        <p class="hero__desc anim-up" style="--d:.1s">
+          Dashboard interactif pour explorer tes fichiers
+          <code>.gpx</code> —
+          carte, stats, dénivelé, pente des côtes, fréquence cardiaque.
+        </p>
+
+        <!-- Boutons d'action (CTA) -->
+        <div class="hero__actions anim-up" style="--d:.2s">
+          <!-- Bouton principal : ouvre le sélecteur de fichier GPX -->
+          <button id="btnImportHero" class="btn btn--primary btn--lg">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Importer un fichier GPX
+          </button>
+          <!-- Bouton secondaire : charge un fichier GPX de démo -->
+          <button id="btnDemo" class="btn btn--ghost btn--lg">Voir la démo →</button>
+        </div>
+
+        <!-- Fonctionnalités (version compacte) -->
+        <div class="hero__features anim-up" style="--d:.3s">
+
+          <div class="feature-card">
+            <div class="feature-card__icon" style="--ic:#00e578;--ib:rgba(0,229,120,.1)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
+                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+            </div>
+            <h3>Carte interactive</h3>
+            <p>OpenStreetMap, OpenTopoMap, satellite. Toutes tes traces sur une seule carte.</p>
           </div>
 
-          <!-- Conteneur de la carte Leaflet (initialisé par app.js) -->
-          <div id="map" class="map-container" role="img" aria-label="Carte de la trace GPS">
-            <!-- Stats en overlay sur la carte (distance, D+, durée, vitesse, FC) -->
-            <div class="map-overlay-stats" id="mapOverlayStats" hidden>
-              <div class="mos-row"><span class="mos-label">Distance</span><span class="mos-val" id="mos-dist">—</span>
-              </div>
-              <div class="mos-row"><span class="mos-label">D+</span><span class="mos-val" id="mos-elev">—</span></div>
-              <div class="mos-row"><span class="mos-label">Durée</span><span class="mos-val" id="mos-dur">—</span></div>
-              <div class="mos-row"><span class="mos-label">Vitesse</span><span class="mos-val" id="mos-spd">—</span>
-              </div>
-              <div class="mos-row" id="mos-hr-row" style="display: none;"><span class="mos-label">FC moy.</span><span
-                  class="mos-val" id="mos-hr">—</span></div>
+          <div class="feature-card">
+            <div class="feature-card__icon" style="--ic:#60a5fa;--ib:rgba(96,165,250,.1)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
+                  d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
             </div>
+            <h3>Colorisation dynamique</h3>
+            <p>Tracé coloré selon la vitesse, l'altitude ou la fréquence cardiaque.</p>
           </div>
 
-          <!-- Barre d'outils sous la carte : choix de la métrique de colorisation + légende -->
-          <div class="map-toolbar">
-            <span class="map-toolbar__label">Colorier par</span>
-            <div class="metric-group" role="group" aria-label="Colorisation de la trace">
-              <button class="metric-btn active" data-metric="speed">Vitesse</button>
-              <button class="metric-btn" data-metric="elevation">Altitude</button>
-              <button class="metric-btn" data-metric="hr">FC</button>
-              <button class="metric-btn" data-metric="none">Uni</button>
+          <div class="feature-card">
+            <div class="feature-card__icon" style="--ic:#c084fc;--ib:rgba(192,132,252,.1)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M3 20h18L21 6z" />
+              </svg>
             </div>
-            <!-- Légende du gradient de couleurs (masquée jusqu'à l'import d'une trace) -->
-            <div id="legend" class="legend" aria-hidden="true" hidden>
-              <span class="legend__label" id="legend-min">0</span>
-              <div class="legend__bar" id="legend-bar"></div>
-              <span class="legend__label" id="legend-max">max</span>
-            </div>
+            <h3>Pente des côtes</h3>
+            <p>Chaque montée détectée avec sa pente moyenne, sa longueur et son D+.</p>
           </div>
 
-          <!-- ─── LIGNE DE GRAPHIQUES (superposée en bas en plein écran) ── -->
-          <div class="charts-row" id="chartsRow">
-
-            <!-- Graphique 1 : Fréquence cardiaque (FC en bpm) -->
-            <div class="panel glass-card panel--chart">
-              <div class="panel__header">
-                <div class="icon-pill icon-pill--red">
-                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </div>
-                <h2 class="panel__name">Fréquence cardiaque</h2>
-              </div>
-              <div class="chart-wrapper" id="chartWrap-hr">
-                <canvas id="hrChart" class="chart-canvas" height="90"></canvas>
-                <div class="chart-crosshair" id="crosshair-hr"></div>
-              </div>
-              <!-- Valeurs au survol (FC + distance) -->
-              <div class="chart-values" id="chartVals-hr">
-                <span class="cv-item"><span class="cv-label">FC</span><span class="cv-val" id="cv-hr-val">—</span> <span
-                    class="cv-unit">bpm</span></span>
-                <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val" id="cv-hr-dist">—</span>
-                  <span class="cv-unit">km</span></span>
-              </div>
+          <div class="feature-card">
+            <div class="feature-card__icon" style="--ic:#f87171;--ib:rgba(248,113,113,.1)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
             </div>
-
-            <!-- Graphique 2 : Vitesse (km/h) -->
-            <div class="panel glass-card panel--chart">
-              <div class="panel__header">
-                <div class="icon-pill icon-pill--blue">
-                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <h2 class="panel__name">Vitesse</h2>
-              </div>
-              <div class="chart-wrapper" id="chartWrap-speed">
-                <canvas id="speedChart" class="chart-canvas" height="90"></canvas>
-                <div class="chart-crosshair" id="crosshair-speed"></div>
-              </div>
-              <!-- Valeurs au survol (vitesse + distance) -->
-              <div class="chart-values" id="chartVals-speed">
-                <span class="cv-item"><span class="cv-label">Vitesse</span><span class="cv-val"
-                    id="cv-speed-val">—</span> <span class="cv-unit">km/h</span></span>
-                <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val"
-                    id="cv-speed-dist">—</span> <span class="cv-unit">km</span></span>
-              </div>
-            </div>
-
-            <!-- Graphique 3 : Profil altimétrique (altitude en m) -->
-            <div class="panel glass-card panel--chart">
-              <div class="panel__header">
-                <div class="icon-pill icon-pill--orange">
-                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21l5-5 4 4 5-5 4 4" />
-                  </svg>
-                </div>
-                <h2 class="panel__name">Profil altimétrique</h2>
-              </div>
-              <div class="chart-wrapper" id="chartWrap-elev">
-                <canvas id="elevChart" class="chart-canvas" height="90"></canvas>
-                <div class="chart-crosshair" id="crosshair-elev"></div>
-              </div>
-              <!-- Valeurs au survol (altitude + distance) -->
-              <div class="chart-values" id="chartVals-elev">
-                <span class="cv-item"><span class="cv-label">Altitude</span><span class="cv-val"
-                    id="cv-elev-val">—</span> <span class="cv-unit">m</span></span>
-                <span class="cv-item"><span class="cv-label">Dist.</span><span class="cv-val" id="cv-elev-dist">—</span>
-                  <span class="cv-unit">km</span></span>
-              </div>
-            </div>
+            <h3>Fréquence cardiaque</h3>
+            <p>Graphe FC depuis l'extension TrackPointExtension v1 des fichiers GPX.</p>
           </div>
-        </div> <!-- /panel--map -->
 
-      </div> <!-- /dashboard__main -->
-    </div> <!-- /dashboard__layout -->
-  </section>
+          <div class="feature-card">
+            <div class="feature-card__icon" style="--ic:#fbbf24;--ib:rgba(251,191,36,.1)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h3>Privé</h3>
+            <p>Tes traces restent dans ton navigateur. Rien n'est envoyé sans connexion.</p>
+          </div>
 
-  <!-- ━━━ FEATURES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       Grille de 6 cartes présentant les fonctionnalités clés de l'app.
-       Chaque carte a une icône SVG, un titre et une description.
-       La classe "reveal" déclenche une animation d'apparition au scroll (via app.js).
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-  <section id="features" class="features section-gap">
-    <div class="section-header reveal">
-      <p class="section-header__eyebrow">Fonctionnalités</p>
-      <h2 class="section-header__title">Tout ce dont tu as besoin</h2>
-      <p class="section-header__sub">Analyse locale — aucune donnée envoyée sur un serveur.</p>
-    </div>
+          <div class="feature-card">
+            <div class="feature-card__icon" style="--ic:#fb923c;--ib:rgba(251,146,60,.1)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </div>
+            <h3>Import GPX</h3>
+            <p>Depuis Garmin Connect, Strava ou toute autre appli GPS.</p>
+          </div>
 
-    <div class="features-grid">
-
-      <div class="feature-card reveal" style="--ri:0">
-        <div class="feature-card__icon" style="--ic:#00e578;--ib:rgba(0,229,120,.1)">
-          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
-              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-          </svg>
         </div>
-        <h3>Carte interactive</h3>
-        <p>Leaflet + OpenStreetMap, OpenTopoMap, vue satellite. Zoom, panoramique, marqueurs start/finish.</p>
+
+        <!-- Liens -->
+        <footer class="footer hero__footer">
+          <p class="footer__sub">GPX<em>tooth</em> · GPS Dashboard · Leaflet</p>
+          <div class="footer__links">
+            <a href="https://github.com/vlldnt/gpxtooth" target="_blank" rel="noopener" aria-label="GitHub">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.410-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.620.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.460-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+              </svg>
+            </a>
+            <a href="https://vieilledent.eu" target="_blank" rel="noopener" aria-label="Site web">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9z" />
+              </svg>
+            </a>
+          </div>
+        </footer>
       </div>
 
-      <div class="feature-card reveal" style="--ri:1">
-        <div class="feature-card__icon" style="--ic:#60a5fa;--ib:rgba(96,165,250,.1)">
-          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
-              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-          </svg>
-        </div>
-        <h3>Colorisation dynamique</h3>
-        <p>Tracé coloré selon la vitesse, l'altitude, ou la fréquence cardiaque avec un gradient fluide.</p>
-      </div>
-
-      <div class="feature-card reveal" style="--ri:2">
-        <div class="feature-card__icon" style="--ic:#fb923c;--ib:rgba(251,146,60,.1)">
-          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
-              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-        </div>
-        <h3>Dashboard complet</h3>
-        <p>Distance, durée, dénivelé, vitesse moyenne, FC — tout calculé dans le navigateur.</p>
-      </div>
-
-      <div class="feature-card reveal" style="--ri:3">
-        <div class="feature-card__icon" style="--ic:#c084fc;--ib:rgba(192,132,252,.1)">
-          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
-              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
-        </div>
-        <h3>Fréquence cardiaque</h3>
-        <p>Graphe temporel FC depuis l'extensio TrackPointExtension v1 dans les fichiers GPX.</p>
-      </div>
-
-      <div class="feature-card reveal" style="--ri:4">
-        <div class="feature-card__icon" style="--ic:#fbbf24;--ib:rgba(251,191,36,.1)">
-          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-        </div>
-        <h3>100 % local &amp; privé</h3>
-        <p>Aucune donnée ne quitte ton appareil. Tout le parsing se fait côté client dans le navigateur.</p>
-      </div>
-
-      <div class="feature-card reveal" style="--ri:5">
-        <div class="feature-card__icon" style="--ic:#f87171;--ib:rgba(248,113,113,.1)">
-          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-        </div>
-        <h3>Import GPX</h3>
-        <p>Glisse-dépose tes fichiers GPX depuis Connect ou toute autre appli GPS.</p>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ━━━ FOOTER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-  <footer class="footer">
-    <p class="footer__brand">GPX<em>tooth</em></p>
-    <p class="footer__sub">GPS Dashboard · GPX · Leaflet · 100 % local</p>
-    <div class="footer__links">
-      <a href="https://github.com/vlldnt/gpxtooth" target="_blank" rel="noopener" aria-label="GitHub">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-          <path
-            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-        </svg>
-      </a>
-      <a href="https://vieilledent.eu" target="_blank" rel="noopener" aria-label="Site web">
-        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9z" />
-        </svg>
-      </a>
-    </div>
-  </footer>
+    </section>
+  </main>
 
   <!-- Toast : notification temporaire (ex: "Fichier importé avec succès")
        Affiché/masqué par app.js. aria-live="polite" pour l'accessibilité. -->
@@ -397,12 +447,33 @@
     <span id="toastMsg"></span>
   </div>
 
+  <!-- Connexion du propriétaire : les identifiants sont vérifiés par le serveur (jamais dans le JS) -->
+  <dialog id="authDialog" class="auth-dialog" aria-labelledby="authTitle">
+    <form id="authForm" class="auth-form" novalidate>
+      <h2 class="auth-form__title" id="authTitle">Connexion</h2>
+      <p class="auth-form__sub">Une fois connecté, tes traces sont enregistrées sur le serveur.</p>
+      <label class="auth-form__field">
+        <span>Email</span>
+        <input type="email" name="email" autocomplete="username" required />
+      </label>
+      <label class="auth-form__field">
+        <span>Mot de passe</span>
+        <input type="password" name="password" autocomplete="current-password" required />
+      </label>
+      <p class="auth-form__error" id="authError" role="alert" hidden></p>
+      <div class="auth-form__actions">
+        <button type="button" class="btn btn--ghost btn--sm" id="authCancel">Annuler</button>
+        <button type="submit" class="btn btn--primary btn--sm" id="authSubmit">Se connecter</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Scripts modulaires -->
-  <script src="scripts/gpx-parser.js"></script> <!-- parsing, stats, haversine, subsample -->
-  <script src="scripts/map.js"></script> <!-- carte Leaflet, trace, tooltip, hover -->
+  <script src="scripts/gpx-parser.js"></script> <!-- parsing, stats, côtes, haversine, subsample -->
+  <script src="scripts/map.js"></script> <!-- carte Leaflet, traces, tooltip, hover -->
   <script src="scripts/charts.js"></script> <!-- graphiques canvas, crosshairs -->
-  <script src="scripts/storage.js"></script> <!-- CRUD activités (localStorage) -->
-  <script src="scripts/ui.js"></script> <!-- rendu DOM, toast, stats, activités -->
+  <script src="scripts/storage.js"></script> <!-- activités : localStorage ou API serveur -->
+  <script src="scripts/ui.js"></script> <!-- rendu DOM, toast, stats, panneau traces -->
   <script src="scripts/app.js"></script> <!-- orchestration, bindings, boot -->
 </body>
 

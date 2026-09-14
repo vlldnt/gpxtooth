@@ -45,8 +45,11 @@ function drawChart(canvasId, data, color, fillColor, chartKey = '') {
 
   ctx.clearRect(0, 0, W, H);
 
+  // Couleurs de grille / labels selon le thème (variables CSS)
+  const css = getComputedStyle(document.documentElement);
+
   // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.strokeStyle = css.getPropertyValue('--chart-grid').trim();
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = pad.top + (i / 4) * cH;
@@ -57,7 +60,7 @@ function drawChart(canvasId, data, color, fillColor, chartKey = '') {
   }
 
   // Y labels
-  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.fillStyle = css.getPropertyValue('--chart-label').trim();
   ctx.font = '10px JetBrains Mono, monospace';
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
@@ -104,9 +107,15 @@ function drawChart(canvasId, data, color, fillColor, chartKey = '') {
   ctx.stroke();
 }
 
+function clearChart(canvasId, chartKey) {
+  const canvas = document.getElementById(canvasId);
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  delete chartMeta[chartKey];
+}
+
 // ── Chart crosshair helpers ───────────────────────
 function showAllCrosshairs(ratio) {
-  for (const key of ['hr', 'speed', 'elev']) {
+  for (const key of ['hr', 'speed', 'elev', 'grade']) {
     const meta = chartMeta[key];
     const el = document.getElementById('crosshair-' + key);
     if (!meta || !el) continue;
@@ -118,7 +127,7 @@ function showAllCrosshairs(ratio) {
 }
 
 function hideAllCrosshairs() {
-  for (const key of ['hr', 'speed', 'elev']) {
+  for (const key of ['hr', 'speed', 'elev', 'grade']) {
     const el = document.getElementById('crosshair-' + key);
     if (el) el.style.opacity = '0';
   }
@@ -149,10 +158,16 @@ function updateChartValues(idx) {
   document.getElementById('cv-elev-dist').textContent = pt._cumDist
     ? pt._cumDist.toFixed(1)
     : '—';
+
+  // Climb under cursor: average grade · length · elevation gain
+  const climb = pt._climb != null ? trackData.climbs?.[pt._climb] : null;
+  document.getElementById('cv-grade-val').textContent = climb
+    ? `${climb.avg.toFixed(1)} % · ${climb.lengthKm.toFixed(1)} km · +${Math.round(climb.gain)} m`
+    : '—';
 }
 
 function initChartHover() {
-  for (const key of ['hr', 'speed', 'elev']) {
+  for (const key of ['hr', 'speed', 'elev', 'grade']) {
     const wrapper = document.getElementById('chartWrap-' + key);
     if (!wrapper) continue;
 
