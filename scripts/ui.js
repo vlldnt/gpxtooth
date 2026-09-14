@@ -165,16 +165,22 @@ function renderSidebar() {
           </span>
           <span class="trace-item__type">${escapeHtml(TYPE_LABELS[a.type] ?? a.type)}</span>
         </button>
+        <button type="button" class="trace-item__delete" title="Supprimer" aria-label="Supprimer la trace ${escapeHtml(a.name)}">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
       </li>`;
     })
     .join('');
 
   list.querySelectorAll('.trace-item').forEach((item) => {
     const id = item.dataset.id;
-    item.addEventListener('click', () => {
+    item.querySelector('.trace-item__btn').addEventListener('click', () => {
       selectActivity(id);
       if (MOBILE_QUERY.matches) setTracesPanelOpen(false);
     });
+    item.querySelector('.trace-item__delete').addEventListener('click', () => removeActivity(id));
     // Survol : aperçu opaque de la trace sur la carte
     item.addEventListener('mouseenter', () => previewTrack(id, true));
     item.addEventListener('mouseleave', () => previewTrack(id, false));

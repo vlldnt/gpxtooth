@@ -821,6 +821,57 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* Ligne : bouton de sélection + bouton supprimer */
+.trace-item {
+  display: flex;
+  align-items: center;
+}
+
+.trace-item .trace-item__btn {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.trace-item__delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: .15rem;
+  padding: 0;
+  border: none;
+  border-radius: .5rem;
+  background: transparent;
+  color: var(--c-text-3);
+  opacity: 0;
+  transition: opacity .15s, color .15s, background .15s;
+}
+
+.trace-item:hover .trace-item__delete,
+.trace-item__delete:focus-visible {
+  opacity: 1;
+}
+
+.trace-item__delete:hover {
+  color: var(--c-red);
+  background: var(--c-tint);
+}
+
+.trace-item__delete:focus-visible {
+  outline: 2px solid var(--c-red);
+  outline-offset: -2px;
+}
+
+/* Écrans tactiles : pas de survol, bouton toujours visible */
+@media (hover: none) {
+  .trace-item__delete {
+    opacity: .6;
+  }
+}
+
 .trace-item__type {
   flex-shrink: 0;
   font-size: .58rem;

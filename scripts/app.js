@@ -169,16 +169,50 @@ function bindFileInputs() {
   });
 }
 
-// ── Load demo GPX file ────────────────────────────
+// ── Demo (affichée sans être enregistrée) ─────────
 async function loadDemoFile() {
   try {
     const res = await fetch('data/vtt.gpx');
     if (!res.ok) throw new Error('not found');
-    const txt = await res.text();
-    importGPX(txt, 'vtt.gpx');
+    showDemo(await res.text());
   } catch (e) {
     console.error('Demo file error:', e);
     showToast('Fichier démo introuvable (data/vtt.gpx)');
+  }
+}
+
+function showDemo(xmlString) {
+  const parsed = parseGPX(xmlString);
+  const stats = calcStats(parsed.points);
+  if (!stats) return;
+
+  trackData = { ...parsed, stats, climbs: calcClimbs(parsed.points) };
+  selectedActivityId = null;
+
+  setHeroVisible(false);
+  updateStats(stats, 'Démo — sortie VTT', parsed.date);
+  updateMapOverlay(stats);
+  renderMap({ fit: 'selected' });
+  redrawAllCharts();
+  highlightSidebarItem(null);
+  showToast('Démo non enregistrée — importe ton fichier GPX pour le garder');
+}
+
+// ── Delete a saved trace ──────────────────────────
+async function removeActivity(id) {
+  const activity = loadActivities().find((a) => a.id === id);
+  if (!activity || !confirm(`Supprimer la trace « ${activity.name} » ?`)) return;
+
+  try {
+    await deleteActivity(id);
+    parsedCache.delete(id);
+    if (selectedActivityId === id) selectedActivityId = null;
+    refreshActivities({ fit: null });
+    showToast(`Trace supprimée : ${activity.name}`);
+  } catch (e) {
+    console.error('Delete error:', e);
+    if (e.status === 401) updateAuthUI(); // session expirée → mode local
+    showToast(e.message || 'Erreur lors de la suppression');
   }
 }
 
