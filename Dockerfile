@@ -1,7 +1,7 @@
 FROM nginx:1.27-alpine
 
 # Copier les fichiers web vers la racine de Nginx
-COPY index.html style.css /var/www/html/
+COPY index.html style.css manifest.webmanifest /var/www/html/
 COPY scripts/ /var/www/html/scripts/
 COPY assets/ /var/www/html/assets/
 COPY data/ /var/www/html/data/

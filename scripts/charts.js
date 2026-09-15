@@ -43,7 +43,8 @@ function traceSmoothLine(ctx, data, toX, toY) {
 
 // ── Canvas chart ──────────────────────────────────
 // highlight : { start, end } en ratio de la trace (0..1) → bande rouge + point
-function drawChart(canvasId, data, color, fillColor, chartKey = '', { highlight } = {}) {
+// markers : [{ start, end }] → petits points rouges sur la courbe
+function drawChart(canvasId, data, color, fillColor, chartKey = '', { highlight, markers = [] } = {}) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || !data.length) return;
 
@@ -119,6 +120,14 @@ function drawChart(canvasId, data, color, fillColor, chartKey = '', { highlight 
   ctx.lineJoin = 'round';
   ctx.stroke();
 
+  for (const m of markers) {
+    const mid = (m.start + m.end) / 2;
+    ctx.beginPath();
+    ctx.arc(pad.left + mid * cW, toY(data[Math.round(mid * (data.length - 1))]), 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.fill();
+  }
+
   // Point rouge au milieu de la zone, sur la courbe
   if (highlight) {
     const mid = (highlight.start + highlight.end) / 2;
@@ -190,10 +199,10 @@ function updateChartValues(idx) {
     ? pt._cumDist.toFixed(1)
     : '—';
 
-  // Climb under cursor: average grade · length · elevation gain
+  // Climb under cursor: average grade · max grade · length · elevation gain
   const climb = pt._climb != null ? trackData.climbs?.[pt._climb] : null;
   document.getElementById('cv-grade-val').textContent = climb
-    ? `${climb.avg.toFixed(1)} % · ${climb.lengthKm.toFixed(1)} km · +${Math.round(climb.gain)} m`
+    ? `${climb.avg.toFixed(1)} % · max ${climb.max.grade.toFixed(1)} % · ${climb.lengthKm.toFixed(1)} km · +${Math.round(climb.gain)} m`
     : '—';
 
   updateCombinedValues(idx);
@@ -323,6 +332,18 @@ function drawCombinedChart() {
     ctx.lineJoin = 'round';
     ctx.stroke();
     ctx.globalAlpha = 1;
+
+    // Côte au premier plan : point rouge sur la pente max de chaque côte
+    if (isSelected && s.key === 'grade') {
+      const lastIdx = trackData.points.length - 1;
+      for (const { max } of trackData.climbs) {
+        const mid = (max.startIdx + max.endIdx) / 2 / lastIdx;
+        ctx.beginPath();
+        ctx.arc(pad.left + mid * cW, toY(data[Math.round(mid * (data.length - 1))]), 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#ef4444';
+        ctx.fill();
+      }
+    }
   }
 
   document.getElementById('combinedWrap').style.setProperty('--series', selected.color);
@@ -363,17 +384,43 @@ function setCombinedCursor(ratio) {
   }
 }
 
+// Libellés : valeurs sous le curseur, ou résumé de la trace tant que le curseur n'est pas posé
+const COMBINED_VALUE_IDS = ['cmb-dist', 'cmb-speed', 'cmb-hr', 'cmb-elev', 'cmb-grade'];
+const COMBINED_LABELS = {
+  cursor: ['Dist.', 'Vit.', 'FC', 'Alt.', 'Côte'],
+  summary: ['Distance', 'Vit. moy.', 'FC moy.', 'D+', 'Côte max'],
+};
+
 function updateCombinedValues(idx) {
   const pt = trackData?.points[idx];
+  const summary = !pt && trackData;
   const set = (id, value) => {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
   };
+  COMBINED_VALUE_IDS.forEach((id, i) => {
+    const label = document.getElementById(id)?.previousElementSibling;
+    if (label) label.textContent = COMBINED_LABELS[summary ? 'summary' : 'cursor'][i];
+  });
+
+  if (summary) {
+    const { stats, steepest } = trackData;
+    set('cmb-dist', stats.dist.toFixed(1));
+    set('cmb-speed', stats.avgSpeed.toFixed(1));
+    set('cmb-hr', stats.hrAvg ?? '—');
+    set('cmb-elev', Math.round(stats.elevUp));
+    set('cmb-grade', steepest ? steepest.grade.toFixed(1) : '—');
+    set('cmb-grade-max', steepest ? `km ${steepest.km.toFixed(1)}` : '');
+    return;
+  }
+
   set('cmb-dist', pt ? pt._cumDist.toFixed(1) : '—');
   set('cmb-speed', pt ? (pt._speed ?? 0).toFixed(1) : '—');
   set('cmb-hr', pt?.hr ?? '—');
   set('cmb-elev', pt ? Math.round(pt.ele) : '—');
   set('cmb-grade', pt ? (pt._grade ?? 0).toFixed(1) : '—');
+  const climb = pt?._climb != null ? trackData.climbs[pt._climb] : null;
+  set('cmb-grade-max', climb ? `max ${climb.max.grade.toFixed(1)} %` : '');
 }
 
 function initCombinedChart() {

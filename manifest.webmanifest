@@ -1,0 +1,20 @@
+{
+  "name": "GPXtooth — GPS Dashboard",
+  "short_name": "GPXtooth",
+  "description": "Visualise et analyse tes traces GPX : carte, vitesse, altitude, fréquence cardiaque et pente des côtes.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07080f",
+  "theme_color": "#07080f",
+  "icons": [
+    {
+      "src": "assets/logoGPXTooth.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

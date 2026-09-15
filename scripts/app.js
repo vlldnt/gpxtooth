@@ -14,6 +14,17 @@ const parsedCache = new Map(); // activity id → parseGPX (évite de re-parser 
 
 const MOBILE_QUERY = window.matchMedia('(max-width: 768px)');
 
+// ── Hauteur réellement visible (Safari iOS) ───────
+// Les barres d'adresse / d'onglets de Safari recouvrent le bas d'une page en 100vh
+// (et 100dvh n'existe pas avant iOS 15.4) : innerHeight donne la zone visible.
+function syncAppHeight() {
+  document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+}
+syncAppHeight();
+window.addEventListener('resize', syncAppHeight);
+window.addEventListener('orientationchange', () => setTimeout(syncAppHeight, 300));
+window.visualViewport?.addEventListener('resize', syncAppHeight);
+
 function getParsedActivity(activity) {
   if (!parsedCache.has(activity.id)) {
     parsedCache.set(activity.id, parseGPX(activity.gpxContent));
@@ -66,7 +77,8 @@ function selectActivity(id, { fit = 'selected' } = {}) {
     }
 
     const stats = calcStats(parsed.points); // renseigne aussi _cumDist / _speed
-    trackData = { ...parsed, stats, climbs: calcClimbs(parsed.points), steepest: calcSteepest(parsed.points) };
+    const climbs = calcClimbs(parsed.points);
+    trackData = { ...parsed, stats, climbs, steepest: steepestClimb(climbs) };
     selectedActivityId = id;
 
     updateStats(stats, activity.name, activity.date ? new Date(activity.date) : parsed.date);
@@ -210,11 +222,13 @@ function redrawAllCharts() {
   const speedData = subsample(trackData.points.map((p) => p._speed ?? 0));
   drawChart('speedChart', speedData, '#60a5fa', '#60a5fa', 'speed');
   const gradeData = subsample(trackData.points.map((p) => p._grade ?? 0));
-  // Pente max en rouge sur le graphique des côtes
+  // Côtes : point rouge sur la pente max de chaque côte, zone rouge sur la plus raide
   const { steepest } = trackData;
   const lastIdx = trackData.points.length - 1;
+  const toRange = ({ startIdx, endIdx }) => ({ start: startIdx / lastIdx, end: endIdx / lastIdx });
   drawChart('gradeChart', gradeData, '#c084fc', '#c084fc', 'grade', {
-    highlight: steepest && { start: steepest.startIdx / lastIdx, end: steepest.endIdx / lastIdx },
+    highlight: steepest && toRange(steepest),
+    markers: trackData.climbs.map((c) => toRange(c.max)),
   });
   updateClimbStats(trackData.climbs, steepest);
   drawCombinedChart();
@@ -251,7 +265,8 @@ function showDemo(xmlString) {
   const stats = calcStats(parsed.points);
   if (!stats) return;
 
-  trackData = { ...parsed, stats, climbs: calcClimbs(parsed.points), steepest: calcSteepest(parsed.points) };
+  const climbs = calcClimbs(parsed.points);
+  trackData = { ...parsed, stats, climbs, steepest: steepestClimb(climbs) };
   selectedActivityId = null;
 
   openMap();
@@ -306,8 +321,8 @@ function repositionOverlays() {
   const traces = document.getElementById('tracesPanel');
   if (!panel || !overlay || !traces) return;
 
-  // Desktop : le nom de la trace flotte au centre, rien à éviter en haut
-  const top = MOBILE_QUERY.matches ? panel.querySelector('.panel__header').offsetHeight + 8 : 8;
+  // Le nom de la trace flotte au centre : rien à éviter en haut
+  const top = 8;
   // Mobile : le graphique combiné remplace la rangée de graphiques
   const charts = document.getElementById(MOBILE_QUERY.matches ? 'chartCombined' : 'chartsRow');
   const bottom = charts.offsetHeight + 8;
@@ -318,15 +333,70 @@ function repositionOverlays() {
 }
 
 // ── Button bindings ──────────────────────────────
-function bindLayerButtons() {
-  const btns = { btnOSM: 'osm', btnTopo: 'topo', btnSatellite: 'satellite' };
-  for (const [id, key] of Object.entries(btns)) {
-    document.getElementById(id).addEventListener('click', () => {
-      setTileLayer(key);
-      Object.keys(btns).forEach((b) => document.getElementById(b).classList.remove('active'));
-      document.getElementById(id).classList.add('active');
-    });
+// Fonds de carte : un fond + surcouches cochables, choix mémorisé dans le navigateur
+const MAP_PREFS_KEY = 'gpxtooth_map';
+
+function bindLayerMenu() {
+  const btn = document.getElementById('layerMenuBtn');
+  const panel = document.getElementById('layerMenuPanel');
+  const baseList = document.getElementById('layerBaseList');
+  const overlayList = document.getElementById('layerOverlayList');
+
+  let prefs = { base: 'osm', overlays: [] };
+  try {
+    prefs = { ...prefs, ...JSON.parse(localStorage.getItem(MAP_PREFS_KEY)) };
+  } catch (e) {
+    // stockage indisponible : fond par défaut
   }
+  if (!BASE_LAYERS[prefs.base]) prefs.base = 'osm';
+  prefs.overlays = Array.isArray(prefs.overlays) ? prefs.overlays.filter((k) => OVERLAY_LAYERS[k]) : [];
+
+  const option = (type, key, cfg, checked) =>
+    `<label class="layer-menu__option"><input type="${type}" name="${type === 'radio' ? 'mapBase' : 'mapOverlay'}" value="${key}"${checked ? ' checked' : ''} /><span>${escapeHtml(cfg.label)}</span></label>`;
+  baseList.innerHTML = Object.entries(BASE_LAYERS)
+    .map(([key, cfg]) => option('radio', key, cfg, key === prefs.base))
+    .join('');
+  overlayList.innerHTML = Object.entries(OVERLAY_LAYERS)
+    .map(([key, cfg]) => option('checkbox', key, cfg, prefs.overlays.includes(key)))
+    .join('');
+
+  const apply = () => {
+    setTileLayer(prefs.base);
+    for (const key of Object.keys(OVERLAY_LAYERS)) setOverlay(key, prefs.overlays.includes(key));
+    const base = BASE_LAYERS[prefs.base];
+    document.getElementById('layerMenuLabel').textContent = base.short ?? base.label;
+    // Crédits des sources affichées (licences), dans le menu plutôt que sur la carte
+    const credits = [prefs.base, ...prefs.overlays].map((k) => (BASE_LAYERS[k] ?? OVERLAY_LAYERS[k]).attr);
+    document.getElementById('layerCredits').textContent = [...new Set(credits)].join(' · ');
+    try {
+      localStorage.setItem(MAP_PREFS_KEY, JSON.stringify(prefs));
+    } catch (e) {
+      // pas de mémorisation, sans gravité
+    }
+  };
+
+  baseList.addEventListener('change', (e) => {
+    prefs.base = e.target.value;
+    apply();
+  });
+  overlayList.addEventListener('change', () => {
+    prefs.overlays = [...overlayList.querySelectorAll('input:checked')].map((input) => input.value);
+    apply();
+  });
+
+  const setOpen = (open) => {
+    panel.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  btn.addEventListener('click', () => setOpen(panel.hidden));
+  document.addEventListener('click', (e) => {
+    if (!panel.hidden && !e.target.closest('#layerMenu')) setOpen(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setOpen(false);
+  });
+
+  apply();
 }
 
 function bindMetricButtons() {
@@ -499,7 +569,7 @@ window.addEventListener('resize', () => {
 document.addEventListener('DOMContentLoaded', async () => {
   initMap();
   bindFileInputs();
-  bindLayerButtons();
+  bindLayerMenu();
   bindMetricButtons();
   bindDemoButtons();
   setupImportButton();

@@ -168,13 +168,16 @@ function calcClimbs(points) {
     const gain = points[endIdx].ele - points[startIdx].ele;
     const length = cum[endIdx] - cum[startIdx];
     if (gain < CLIMB_MIN_GAIN_M || length <= 0) return;
+    const avg = (gain / length) * 100;
     climbs.push({
       startIdx,
       endIdx,
       startKm: cum[startIdx] / 1000,
       lengthKm: length / 1000,
       gain,
-      avg: (gain / length) * 100,
+      avg,
+      // Pente max de la côte (sur 100 m) ; côte plus courte que la fenêtre : sa pente moyenne
+      max: steepestIn(points, cum, startIdx, endIdx) ?? { grade: avg, startIdx, endIdx, km: cum[startIdx] / 1000 },
     });
   };
 
@@ -215,25 +218,30 @@ function calcClimbs(points) {
   return climbs;
 }
 
-// ── Pente max : mesurée sur au moins STEEPEST_WINDOW_M (lisse le bruit GPS) ──
-// À appeler après calcStats (utilise _cumDist). Renvoie { grade, startIdx, endIdx, km } ou null.
+// ── Pente max : fenêtre glissante d'au moins STEEPEST_WINDOW_M (lisse le bruit GPS) ──
+// cumM : distance cumulée en mètres ; recherche entre les indices from et to.
+// Renvoie { grade, startIdx, endIdx, km } ou null.
 const STEEPEST_WINDOW_M = 100;
 
-function calcSteepest(points) {
+function steepestIn(points, cumM, from = 0, to = points.length - 1) {
   let best = null;
-  let j = 0;
-  for (let i = 0; i < points.length; i++) {
-    const start = points[i]._cumDist * 1000;
+  let j = from;
+  for (let i = from; i < to; i++) {
     j = Math.max(j, i + 1);
-    while (j < points.length && points[j]._cumDist * 1000 - start < STEEPEST_WINDOW_M) j++;
-    if (j >= points.length) break;
+    while (j <= to && cumM[j] - cumM[i] < STEEPEST_WINDOW_M) j++;
+    if (j > to) break;
 
-    const grade = ((points[j].ele - points[i].ele) / (points[j]._cumDist * 1000 - start)) * 100;
+    const grade = ((points[j].ele - points[i].ele) / (cumM[j] - cumM[i])) * 100;
     if (grade > 0 && (!best || grade > best.grade)) {
-      best = { grade, startIdx: i, endIdx: j, km: points[i]._cumDist };
+      best = { grade, startIdx: i, endIdx: j, km: cumM[i] / 1000 };
     }
   }
   return best;
+}
+
+// Pente max de la trace : la plus forte des pentes max par côte (null sans côte)
+function steepestClimb(climbs) {
+  return climbs.reduce((best, c) => (!best || c.max.grade > best.grade ? c.max : best), null);
 }
 
 function haversine(lat1, lon1, lat2, lon2) {

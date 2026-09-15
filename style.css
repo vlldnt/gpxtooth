@@ -142,6 +142,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   height: 100vh;
   height: 100dvh;
+  /* Hauteur visible mesurée en JS (app.js) : fiable sur Safari iOS, barres déduites */
+  height: var(--app-height, 100vh);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2489,15 +2491,48 @@ button {
 .combined-values {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: start;
   gap: .25rem;
   padding-top: .55rem;
   font-size: .72rem;
 }
 
+/* Libellé au-dessus, valeur + unité sur la même ligne, max de la côte dessous */
 .combined-values .cv-item {
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  align-items: baseline;
+  column-gap: .15rem;
+  text-align: center;
+}
+
+.combined-values .cv-label,
+.combined-values .cv-sub {
+  grid-column: 1 / -1;
+}
+
+.combined-values .cv-sub {
+  font-size: .56rem;
+  font-weight: 600;
+  color: var(--c-red);
+  white-space: nowrap;
+}
+
+/* Côtes (desktop) : détail de la côte survolée sur sa ligne, moyenne et max dessous */
+#chartVals-grade {
+  row-gap: .05rem;
+}
+
+#chartVals-grade .cv-item:first-child {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+#cv-grade-val {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .combined-values .cv-label {
@@ -2667,7 +2702,7 @@ button {
 /* Mobile : cadre des données de hauteur fixe */
 @media (max-width: 768px) {
   .chart-combined {
-    height: 10.75rem;
+    height: 12.5rem;
     overflow: hidden;
     margin-top: .4rem;
     padding: .4rem .55rem;
@@ -2711,19 +2746,39 @@ button {
   border: none;
 }
 
-/* Nom de la trace : barre translucide en haut (mobile), pastille (desktop) */
+/* Nom de la trace : pastille translucide posée sur la carte (haut centre) */
 .panel--map > .panel__header {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: .6rem;
+  left: 50%;
   z-index: 600;
+  transform: translateX(-50%);
+  max-width: min(34%, 26rem);
   margin: 0;
-  padding: .35rem .75rem;
-  background: var(--c-overlay);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--c-border);
+  padding: .3rem .8rem;
+  text-align: center;
+  background: var(--c-map-chip);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--c-border);
+  border-radius: .7rem;
+  pointer-events: none;
+  transition: opacity .15s ease;
+}
+
+.panel--map > .panel__header .icon-pill {
+  display: none;
+}
+
+.panel--map > .panel__header .panel__name {
+  font-size: .8rem;
+}
+
+.panel--map > .panel__header .panel__sub {
+  font-size: .64rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Données en surimpression en bas de la carte */
@@ -2755,35 +2810,191 @@ button {
   padding: .25rem .4rem;
 }
 
-@media (min-width: 769px) {
+/* Mobile : pastille plus petite, entre le bouton Traces et le menu des fonds ;
+   masquée quand la liste des traces est ouverte (elle passerait par-dessus) */
+@media (max-width: 768px) {
   .panel--map > .panel__header {
-    top: .6rem;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    max-width: min(34%, 26rem);
-    padding: .3rem .8rem;
-    text-align: center;
-    background: var(--c-map-chip);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--c-border);
-    border-radius: .7rem;
-    pointer-events: none;
-  }
-
-  .panel--map > .panel__header .icon-pill {
-    display: none;
+    top: .5rem;
+    max-width: 36%;
+    padding: .22rem .55rem;
+    border-radius: .55rem;
   }
 
   .panel--map > .panel__header .panel__name {
-    font-size: .8rem;
+    font-size: .7rem;
   }
 
-  .panel--map > .panel__header .panel__sub {
-    font-size: .64rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .panel--map:has(.traces-panel:not(.is-collapsed)) > .panel__header {
+    opacity: 0;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MENU DES FONDS DE CARTE (haut droite de la carte)
+   ════════════════════════════════════════════════════════════ */
+/* Au-dessus de la colorisation et du zoom Leaflet (z-index 800) */
+.map-controls__row {
+  position: relative;
+  z-index: 900;
+}
+
+.layer-menu {
+  position: relative;
+}
+
+.layer-menu__btn {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  height: 24px;
+  padding: 0 .5rem;
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--c-text);
+  background: var(--c-map-chip);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--c-border);
+  border-radius: .5rem;
+}
+
+.layer-menu__btn:hover {
+  border-color: var(--c-border-2);
+}
+
+.layer-menu__btn:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 1px;
+}
+
+.layer-menu__chevron {
+  opacity: .7;
+  transition: transform .2s ease;
+}
+
+.layer-menu__btn[aria-expanded="true"] .layer-menu__chevron {
+  transform: rotate(180deg);
+}
+
+.layer-menu__panel {
+  position: absolute;
+  top: calc(100% + .3rem);
+  right: 0;
+  width: 13.5rem;
+  max-height: min(26rem, 65vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: .45rem;
+  background: var(--c-overlay);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--c-border-2);
+  border-radius: .75rem;
+  box-shadow: var(--shadow-float);
+}
+
+.layer-menu__title {
+  margin: .2rem .35rem .25rem;
+  font-size: .56rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--c-text-3);
+}
+
+.layer-menu__list + .layer-menu__title {
+  margin-top: .55rem;
+}
+
+.layer-menu__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.layer-menu__option {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .3rem .35rem;
+  border-radius: .45rem;
+  font-size: .72rem;
+  color: var(--c-text-2);
+  cursor: pointer;
+}
+
+.layer-menu__option:hover {
+  color: var(--c-text);
+  background: var(--c-tint);
+}
+
+.layer-menu__option:has(input:checked) {
+  color: var(--c-text);
+}
+
+.layer-menu__option input {
+  margin: 0;
+  accent-color: var(--c-green);
+}
+
+.layer-menu__credits {
+  margin: .5rem .35rem .1rem;
+  padding-top: .4rem;
+  border-top: 1px solid var(--c-border);
+  font-size: .58rem;
+  line-height: 1.4;
+  color: var(--c-text-3);
+}
+
+/* ════════════════════════════════════════════════════════════
+   iPHONE : ZONES SÛRES (encoche, barre d'accueil)
+   Ouvert depuis l'écran d'accueil, la page passe sous la barre d'état
+   (viewport-fit=cover) : on décale la barre du haut et les données du bas.
+   env() vaut 0 ailleurs, rien ne change sur les autres écrans.
+   ════════════════════════════════════════════════════════════ */
+.nav {
+  padding-top: calc(.35rem + env(safe-area-inset-top));
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+}
+
+.panel--map .charts-row {
+  padding-bottom: calc(.35rem + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 768px) {
+  .nav {
+    padding-left: max(.75rem, env(safe-area-inset-left));
+    padding-right: max(.75rem, env(safe-area-inset-right));
+  }
+
+  .chart-combined {
+    height: calc(12.5rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(.4rem + env(safe-area-inset-bottom));
+  }
+
+  /* Notifications au-dessus du cadre des données, pour ne pas le masquer */
+  .toast {
+    bottom: calc(13.25rem + env(safe-area-inset-bottom));
+  }
+
+  /* Barre du haut plus fine sur mobile */
+  .nav {
+    padding-top: calc(.2rem + env(safe-area-inset-top));
+    padding-bottom: .2rem;
+  }
+
+  .nav__brand {
+    gap: .45rem;
+  }
+
+  .nav__logo img {
+    width: 22px;
+    height: 22px;
+  }
+
+  .nav__wordmark {
+    font-size: .9rem;
   }
 }

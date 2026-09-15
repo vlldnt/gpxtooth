@@ -3,7 +3,19 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- viewport-fit=cover : la page va jusque sous l'encoche (marges via env(safe-area-inset-*)) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <!-- Couleur de la barre Safari / Android, mise à jour par theme.js selon le thème -->
+  <meta name="theme-color" content="#07080f" />
+
+  <!-- Application web : « Ajouter à l'écran d'accueil » ouvre le site en plein écran, sans barre d'adresse -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GPXtooth" />
+  <link rel="apple-touch-icon" href="assets/logoGPXTooth.png" />
   <title>GPXtooth — GPS Dashboard</title>
 
   <!-- ===== DÉPENDANCES EXTERNES ===== -->
@@ -153,10 +165,27 @@
              fond de carte, colorisation + légende, zoom (déplacé ici par map.js) -->
         <div class="map-controls" id="mapControls">
           <div class="map-controls__row">
-            <div class="layer-group" role="group" aria-label="Fond de carte">
-              <button id="btnOSM" class="layer-btn active">OSM</button>
-              <button id="btnTopo" class="layer-btn">Topo</button>
-              <button id="btnSatellite" class="layer-btn">Sat</button>
+            <!-- Menu des fonds de carte + surcouches (listes remplies par app.js depuis map.js) -->
+            <div class="layer-menu" id="layerMenu">
+              <button type="button" class="layer-menu__btn" id="layerMenuBtn" aria-expanded="false"
+                aria-controls="layerMenuPanel" title="Fond de carte">
+                <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 3l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 16l9 5 9-5" />
+                </svg>
+                <span id="layerMenuLabel">OSM</span>
+                <svg class="layer-menu__chevron" width="11" height="11" fill="none" stroke="currentColor"
+                  viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div class="layer-menu__panel" id="layerMenuPanel" hidden>
+                <p class="layer-menu__title">Fond de carte</p>
+                <div class="layer-menu__list" id="layerBaseList" role="radiogroup" aria-label="Fond de carte"></div>
+                <p class="layer-menu__title">Surcouches</p>
+                <div class="layer-menu__list" id="layerOverlayList" role="group" aria-label="Surcouches"></div>
+                <p class="layer-menu__credits" id="layerCredits"></p>
+              </div>
             </div>          </div>
           <div class="map-toolbar">
             <div class="metric-group" role="group" aria-label="Colorisation de la trace">
@@ -323,7 +352,7 @@
           <span class="cv-item"><span class="cv-label">Alt.</span><span class="cv-val" id="cmb-elev">—</span><span
               class="cv-unit">m</span></span>
           <span class="cv-item"><span class="cv-label">Côte</span><span class="cv-val" id="cmb-grade">—</span><span
-              class="cv-unit">%</span></span>
+              class="cv-unit">%</span><span class="cv-sub" id="cmb-grade-max"></span></span>
         </div>
       </div>
     </div> <!-- /panel--map -->

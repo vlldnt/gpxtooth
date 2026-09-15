@@ -13,23 +13,104 @@ let currentTileLayer = null;
 let tooltipEl = null;
 let snapMarker = null;
 
-const TILE_LAYERS = {
+// ── Fonds de carte et surcouches ──────────────────
+// IGN Géoplateforme en WMTS, sans clé (SCAN 25 : clé publique ign_scan_ws).
+// maxNativeZoom = dernier zoom où le serveur a des tuiles (vérifié) ; au-delà Leaflet agrandit.
+function ignWmts(layer, { format = 'image/png', style = 'normal', key } = {}) {
+  const base = key ? `https://data.geopf.fr/private/wmts?apikey=${key}&` : 'https://data.geopf.fr/wmts?';
+  return `${base}SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=${style}&TILEMATRIXSET=PM&FORMAT=${format}&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`;
+}
+
+const BASE_LAYERS = {
   osm: {
+    label: 'OpenStreetMap',
+    short: 'OSM',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attr: '© OpenStreetMap contributors',
-    options: { maxZoom: 19 },
+    attr: '© OpenStreetMap',
+  },
+  osmfr: {
+    label: 'OSM France',
+    url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+    attr: '© OpenStreetMap France',
+  },
+  ignPlan: {
+    label: 'Plan IGN',
+    url: ignWmts('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2'),
+    attr: '© IGN',
+  },
+  ignScan25: {
+    label: 'IGN Scan 25 (rando)',
+    short: 'Scan 25',
+    url: ignWmts('GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR', { format: 'image/jpeg', key: 'ign_scan_ws' }),
+    attr: '© IGN',
+    options: { maxNativeZoom: 16 },
   },
   topo: {
+    label: 'OpenTopoMap',
+    short: 'Topo',
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attr: '© OpenTopoMap contributors',
-    options: { maxZoom: 19 },
+    attr: '© OpenTopoMap',
+  },
+  cyclosm: {
+    label: 'CyclOSM (vélo / VTT)',
+    short: 'CyclOSM',
+    url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+    attr: '© CyclOSM · © OpenStreetMap',
+  },
+  esriTopo: {
+    label: 'Esri Topo',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    attr: '© Esri',
+  },
+  ignOrtho: {
+    label: 'Photo aérienne IGN',
+    short: 'Photo IGN',
+    url: ignWmts('ORTHOIMAGERY.ORTHOPHOTOS', { format: 'image/jpeg' }),
+    attr: '© IGN',
   },
   satellite: {
+    label: 'Satellite Esri',
+    short: 'Sat',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr: '© ESRI World Imagery',
-    options: { maxZoom: 19 },
+    attr: '© Esri World Imagery',
+  },
+  swisstopo: {
+    label: 'SwissTopo (Suisse)',
+    short: 'SwissTopo',
+    url: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg',
+    attr: '© swisstopo',
   },
 };
+
+// Surcouches transparentes, cumulables par-dessus n'importe quel fond
+const OVERLAY_LAYERS = {
+  hiking: {
+    label: 'Sentiers de rando balisés',
+    url: 'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png',
+    attr: '© Waymarked Trails',
+    options: { maxNativeZoom: 18 },
+  },
+  mtb: {
+    label: 'Circuits VTT balisés',
+    url: 'https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png',
+    attr: '© Waymarked Trails',
+    options: { maxNativeZoom: 18 },
+  },
+  shadow: {
+    label: 'Relief ombré (IGN)',
+    url: ignWmts('ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW', { style: 'estompage_grayscale' }),
+    attr: '© IGN',
+    options: { maxNativeZoom: 15, opacity: 0.45 },
+  },
+  slopes: {
+    label: 'Pentes en montagne (IGN)',
+    url: ignWmts('GEOGRAPHICALGRIDSYSTEMS.SLOPES.MOUNTAIN'),
+    attr: '© IGN',
+    options: { maxNativeZoom: 17, opacity: 0.6 },
+  },
+};
+
+const overlayLayers = new Map(); // clé → surcouche affichée
 
 // ── Init map ─────────────────────────────────────
 function initMap() {
@@ -44,7 +125,7 @@ function initMap() {
   const zoom = L.control.zoom({ position: 'topright' }).addTo(map);
   document.getElementById('mapControls')?.appendChild(zoom.getContainer());
 
-  setTileLayer('osm');
+  // Fond de carte : posé par bindLayerMenu (choix mémorisé)
 
   // Empty state overlay
   document.getElementById('map').insertAdjacentHTML(
@@ -61,16 +142,23 @@ function initMap() {
   );
 }
 
+function createTileLayer(cfg, zIndex) {
+  return L.tileLayer(cfg.url, { maxZoom: 19, ...cfg.options, zIndex, crossOrigin: 'anonymous' });
+}
+
 function setTileLayer(name) {
   if (currentTileLayer) map.removeLayer(currentTileLayer);
-  const cfg = TILE_LAYERS[name];
-  const opts = {
-    attribution: cfg.attr,
-    ...cfg.options,
-    crossOrigin: 'anonymous',
-  };
-  currentTileLayer = L.tileLayer(cfg.url, opts);
-  currentTileLayer.addTo(map);
+  currentTileLayer = createTileLayer(BASE_LAYERS[name] ?? BASE_LAYERS.osm, 1).addTo(map);
+}
+
+function setOverlay(name, visible) {
+  const current = overlayLayers.get(name);
+  if (visible && !current) {
+    overlayLayers.set(name, createTileLayer(OVERLAY_LAYERS[name], 2).addTo(map));
+  } else if (!visible && current) {
+    map.removeLayer(current);
+    overlayLayers.delete(name);
+  }
 }
 
 // ── Color helpers ─────────────────────────────────
