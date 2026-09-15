@@ -38,12 +38,13 @@ const BASE_LAYERS = {
     url: ignWmts('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2'),
     attr: '© IGN',
   },
-  ignScan25: {
-    label: 'IGN Scan 25 (rando)',
-    short: 'Scan 25',
-    url: ignWmts('GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR', { format: 'image/jpeg', key: 'ign_scan_ws' }),
+  // Carte topographique IGN multi-échelles (TOP 25 aux zooms rando), clé publique ign_scan_ws
+  ignTopo: {
+    label: 'IGN Topo (France)',
+    short: 'IGN Topo',
+    url: ignWmts('GEOGRAPHICALGRIDSYSTEMS.MAPS', { format: 'image/jpeg', key: 'ign_scan_ws' }),
     attr: '© IGN',
-    options: { maxNativeZoom: 16 },
+    options: { maxNativeZoom: 18 },
   },
   topo: {
     label: 'OpenTopoMap',
@@ -57,11 +58,6 @@ const BASE_LAYERS = {
     url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
     attr: '© CyclOSM · © OpenStreetMap',
   },
-  esriTopo: {
-    label: 'Esri Topo',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-    attr: '© Esri',
-  },
   ignOrtho: {
     label: 'Photo aérienne IGN',
     short: 'Photo IGN',
@@ -73,12 +69,6 @@ const BASE_LAYERS = {
     short: 'Sat',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attr: '© Esri World Imagery',
-  },
-  swisstopo: {
-    label: 'SwissTopo (Suisse)',
-    short: 'SwissTopo',
-    url: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg',
-    attr: '© swisstopo',
   },
 };
 
@@ -95,12 +85,6 @@ const OVERLAY_LAYERS = {
     url: 'https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png',
     attr: '© Waymarked Trails',
     options: { maxNativeZoom: 18 },
-  },
-  shadow: {
-    label: 'Relief ombré (IGN)',
-    url: ignWmts('ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW', { style: 'estompage_grayscale' }),
-    attr: '© IGN',
-    options: { maxNativeZoom: 15, opacity: 0.45 },
   },
   slopes: {
     label: 'Pentes en montagne (IGN)',
@@ -146,8 +130,12 @@ function createTileLayer(cfg, zIndex) {
   return L.tileLayer(cfg.url, { maxZoom: 19, ...cfg.options, zIndex, crossOrigin: 'anonymous' });
 }
 
+let currentTileName = null;
+
 function setTileLayer(name) {
+  if (currentTileLayer && currentTileName === name) return; // déjà affiché : pas de rechargement des tuiles
   if (currentTileLayer) map.removeLayer(currentTileLayer);
+  currentTileName = name;
   currentTileLayer = createTileLayer(BASE_LAYERS[name] ?? BASE_LAYERS.osm, 1).addTo(map);
 }
 
@@ -292,9 +280,11 @@ function drawTrack(points, metric, color = '#00e578') {
   else if (metric === 'elevation') vals = points.map((p) => p.ele ?? 0);
   else if (metric === 'hr') vals = points.map((p) => p.hr ?? 0);
 
+  // Boucle plutôt que Math.min(...vals) : pas de dépassement de pile sur les très gros GPX
   const positive = vals.filter((v) => v > 0);
-  const min = metric !== 'none' && positive.length ? Math.min(...positive) : 0;
-  const max = metric !== 'none' && positive.length ? Math.max(...vals) : 1;
+  const hasValues = metric !== 'none' && positive.length > 0;
+  const min = hasValues ? positive.reduce((a, b) => (b < a ? b : a)) : 0;
+  const max = hasValues ? vals.reduce((a, b) => (b > a ? b : a)) : 1;
   const range = max - min || 1;
 
   updateLegend(metric, min, max);

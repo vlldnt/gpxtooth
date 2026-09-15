@@ -25,7 +25,7 @@ const COOKIE_SECURE = process.env.COOKIE_SECURE !== 'false';
 
 const COOKIE_NAME = 'gpxtooth_session';
 const SESSION_TTL_S = 7 * 24 * 3600; // 7 jours
-const MAX_BODY_BYTES = 20 * 1024 * 1024; // 20 Mo
+const MAX_BODY_BYTES = 60 * 1024 * 1024; // 60 Mo : GPX de 50 Mo + échappement JSON
 const LOGIN_MAX_FAILS = 5; // tentatives ratées…
 const LOGIN_WINDOW_MS = 15 * 60 * 1000; // …par IP sur 15 min
 const ACTIVITY_TYPES = new Set(['vtt', 'running', 'hiking', 'cycling', 'other']);
@@ -43,10 +43,10 @@ function httpError(status, message) {
 }
 
 function send(res, status, body) {
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store',
-  });
+  // Réponse vide (204) : pas de Content-Type JSON, le client n'a rien à lire
+  const headers = { 'Cache-Control': 'no-store' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json; charset=utf-8';
+  res.writeHead(status, headers);
   res.end(body === undefined ? undefined : JSON.stringify(body));
 }
 
@@ -72,7 +72,7 @@ function readJson(req) {
       else chunks.push(chunk);
     });
     req.on('end', () => {
-      if (tooLarge) return reject(httpError(413, 'Fichier trop volumineux (20 Mo max)'));
+      if (tooLarge) return reject(httpError(413, 'Fichier trop volumineux (50 Mo max)'));
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
       } catch (e) {
@@ -201,6 +201,53 @@ function updateActivities(mutate) {
   return run;
 }
 
+// ── GPX : un fichier par trace ───────────────────
+// activities.json ne garde que les métadonnées + un aperçu léger du tracé (pour la carte) :
+// la liste reste petite même avec des centaines de traces, le GPX complet est lu à la demande.
+const GPX_DIR = path.join(DATA_DIR, 'gpx');
+const PREVIEW_MAX_POINTS = 400;
+const ID_PATTERN = /^[\w-]{1,64}$/;
+
+function gpxPath(id) {
+  return path.join(GPX_DIR, `${id}.gpx`);
+}
+
+// Tracé simplifié [[lat, lon], …] lu directement dans le XML (sans dépendance)
+function extractPreview(gpx) {
+  const points = [];
+  for (const [, attrs] of gpx.matchAll(/<trkpt\b([^>]*)>/g)) {
+    const lat = parseFloat(/\blat=["']([^"']+)["']/.exec(attrs)?.[1]);
+    const lon = parseFloat(/\blon=["']([^"']+)["']/.exec(attrs)?.[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) points.push([lat, lon]);
+  }
+  const step = Math.max(1, Math.ceil(points.length / PREVIEW_MAX_POINTS));
+  const preview = points.filter((_, i) => i % step === 0);
+  if (points.length > 1 && preview.at(-1) !== points.at(-1)) preview.push(points.at(-1)); // garder l'arrivée
+  return preview.map(([lat, lon]) => [+lat.toFixed(5), +lon.toFixed(5)]);
+}
+
+// Ancien format (GPX complets dans activities.json) → un fichier .gpx par trace.
+// Une copie de l'ancien fichier est gardée à côté (activities.json.bak-…).
+async function migrateStorage() {
+  await fs.mkdir(GPX_DIR, { recursive: true });
+  const activities = await readActivities();
+  if (!activities.some((a) => typeof a.gpxContent === 'string')) return;
+
+  await fs.copyFile(DATA_FILE, `${DATA_FILE}.bak-${Date.now()}`);
+  for (const activity of activities) {
+    if (typeof activity.gpxContent !== 'string') continue;
+    if (!ID_PATTERN.test(activity.id)) activity.id = crypto.randomUUID();
+    await fs.writeFile(gpxPath(activity.id), activity.gpxContent);
+    activity.preview = extractPreview(activity.gpxContent);
+    delete activity.gpxContent;
+  }
+  await updateActivities((list) => {
+    list.splice(0, list.length, ...activities);
+  });
+  console.log(`Stockage migré : ${activities.length} trace(s), un fichier GPX par trace`);
+}
+
+// Renvoie { meta, gpxContent } : les métadonnées vont dans activities.json, le GPX dans son fichier
 function validateActivity(body) {
   const isStr = (v, max) => typeof v === 'string' && v.length <= max;
   if (!body || typeof body !== 'object') throw httpError(400, 'Trace invalide');
@@ -216,15 +263,45 @@ function validateActivity(body) {
   }
 
   return {
-    id: crypto.randomUUID(),
-    name: body.name.trim(),
-    date: body.date || new Date().toISOString(),
-    type: ACTIVITY_TYPES.has(body.type) ? body.type : 'other',
-    stats: body.stats,
+    meta: {
+      id: crypto.randomUUID(),
+      name: body.name.trim(),
+      date: body.date || new Date().toISOString(),
+      type: ACTIVITY_TYPES.has(body.type) ? body.type : 'other',
+      stats: body.stats,
+      filename: isStr(body.filename, 255) ? body.filename : null,
+      savedAt: new Date().toISOString(),
+      preview: extractPreview(body.gpxContent),
+    },
     gpxContent: body.gpxContent,
-    filename: isStr(body.filename, 255) ? body.filename : null,
-    savedAt: new Date().toISOString(),
   };
+}
+
+// ── Préférences du compte (fond de carte…) ────────
+const PREFS_FILE = path.join(DATA_DIR, 'prefs.json');
+
+async function readPrefs() {
+  try {
+    return JSON.parse(await fs.readFile(PREFS_FILE, 'utf8'));
+  } catch (e) {
+    if (e.code === 'ENOENT') return {};
+    throw e;
+  }
+}
+
+async function writePrefs(prefs) {
+  const tmp = `${PREFS_FILE}.${crypto.randomUUID()}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(prefs));
+  await fs.rename(tmp, PREFS_FILE); // remplacement atomique
+}
+
+function validatePrefs(body) {
+  const isKey = (v) => typeof v === 'string' && /^[\w-]{1,40}$/.test(v);
+  const map = body?.map;
+  if (!map || !isKey(map.base) || !Array.isArray(map.overlays) || map.overlays.length > 20 || !map.overlays.every(isKey)) {
+    throw httpError(400, 'Préférences invalides');
+  }
+  return { map: { base: map.base, overlays: [...new Set(map.overlays)] } };
 }
 
 // ── Router ───────────────────────────────────────
@@ -249,11 +326,35 @@ const server = http.createServer(async (req, res) => {
 
     if (route === 'GET /api/activities') return send(res, 200, await readActivities());
 
+    if (route === 'GET /api/prefs') return send(res, 200, await readPrefs());
+    if (route === 'PUT /api/prefs') {
+      const prefs = validatePrefs(await readJson(req));
+      await writePrefs(prefs);
+      return send(res, 200, prefs);
+    }
+
     if (route === 'POST /api/activities') {
-      const activity = validateActivity(await readJson(req));
-      await updateActivities((activities) => activities.unshift(activity));
-      const { gpxContent, ...meta } = activity; // inutile de renvoyer le GPX
+      const { meta, gpxContent } = validateActivity(await readJson(req));
+      await fs.writeFile(gpxPath(meta.id), gpxContent); // fichier d'abord : jamais de trace sans GPX
+      await updateActivities((activities) => activities.unshift(meta));
       return send(res, 201, meta);
+    }
+
+    // GPX complet d'une trace (chargé à la sélection) ; contenu figé par id → cache navigateur
+    const gpxMatch = pathname.match(/^\/api\/activities\/([\w-]{1,64})\/gpx$/);
+    if (req.method === 'GET' && gpxMatch) {
+      let gpx;
+      try {
+        gpx = await fs.readFile(gpxPath(gpxMatch[1]));
+      } catch (e) {
+        if (e.code === 'ENOENT') return send(res, 404, { error: 'Trace introuvable' });
+        throw e;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/gpx+xml; charset=utf-8',
+        'Cache-Control': 'private, max-age=86400',
+      });
+      return res.end(gpx);
     }
 
     const match = pathname.match(/^\/api\/activities\/([\w-]{1,64})$/);
@@ -278,6 +379,7 @@ const server = http.createServer(async (req, res) => {
         if (idx !== -1) activities.splice(idx, 1);
         return idx !== -1;
       });
+      if (removed) await fs.rm(gpxPath(match[1]), { force: true });
       return removed ? send(res, 204) : send(res, 404, { error: 'Trace introuvable' });
     }
 
@@ -289,4 +391,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`GPXtooth API sur le port ${PORT}`));
+migrateStorage()
+  .then(() => server.listen(PORT, () => console.log(`GPXtooth API sur le port ${PORT}`)))
+  .catch((e) => {
+    console.error('Migration du stockage impossible :', e);
+    process.exit(1);
+  });

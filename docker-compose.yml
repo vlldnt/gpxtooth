@@ -1,3 +1,7 @@
+# ─── GPXtooth en PRODUCTION (VPS) ────────────────────────────────────────────
+# Déployer : docker --context vps compose up -d --build
+# En local, utiliser docker-compose.local.yml (ou node dev.js sans Docker).
+
 version: '3.8'
 
 services:

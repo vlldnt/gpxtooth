@@ -12,6 +12,7 @@ const LOCAL_KEY = 'gpxtooth_activities';
 let authEmail = null; // email du compte connecté, null = mode local
 let serverActivities = []; // cache des traces du serveur
 let localActivities = null; // cache du localStorage (lu une seule fois)
+let serverPrefs = null; // préférences du compte connecté ({ map: { base, overlays } }), null = aucune
 
 function isServerMode() {
   return authEmail !== null;
@@ -27,7 +28,7 @@ async function api(path, { method = 'GET', body, timeout } = {}) {
     signal: timeout ? AbortSignal.timeout(timeout) : undefined,
   });
   const isJson = (res.headers.get('content-type') || '').includes('application/json');
-  const data = isJson ? await res.json() : null;
+  const data = isJson && res.status !== 204 ? await res.json() : null; // 204 : corps vide
 
   // Session expirée : retour en mode local
   if (res.status === 401 && path !== 'login') {
@@ -50,9 +51,11 @@ async function initAuth() {
     const me = await api('me', { timeout: 5000 });
     authEmail = me.email;
     serverActivities = await api('activities');
+    serverPrefs = await loadServerPrefs();
   } catch (e) {
     authEmail = null;
     serverActivities = [];
+    serverPrefs = null;
   }
 }
 
@@ -60,6 +63,7 @@ async function login(email, password) {
   const me = await api('login', { method: 'POST', body: { email, password } });
   authEmail = me.email;
   serverActivities = await api('activities');
+  serverPrefs = await loadServerPrefs();
 }
 
 async function logout() {
@@ -68,7 +72,24 @@ async function logout() {
   } finally {
     authEmail = null;
     serverActivities = [];
+    serverPrefs = null;
   }
+}
+
+// ── Préférences du compte (fond de carte…) ───────
+// Retrouvées d'un appareil et d'une session à l'autre ; sans compte, seul le navigateur les garde.
+async function loadServerPrefs() {
+  try {
+    return await api('prefs');
+  } catch (e) {
+    return null; // API sans préférences : pas bloquant
+  }
+}
+
+function saveServerPrefs(prefs) {
+  serverPrefs = prefs;
+  if (!isServerMode()) return;
+  api('prefs', { method: 'PUT', body: prefs }).catch((e) => console.warn('Préférences non enregistrées :', e.message));
 }
 
 // ── Activities CRUD ─────────────────────────────
@@ -123,6 +144,26 @@ async function saveActivity(name, date, type, stats, gpxContent, filename) {
     ...loadLocalActivities(),
   ]);
   return id;
+}
+
+// GPX complet d'une trace du serveur : la liste n'a qu'un aperçu, le fichier est chargé
+// à la première sélection puis gardé en mémoire (et en cache navigateur)
+async function loadActivityGpx(activity) {
+  if (activity.gpxContent) return activity.gpxContent;
+  const res = await fetch('api/activities/' + encodeURIComponent(activity.id) + '/gpx', {
+    credentials: 'same-origin',
+  });
+  if (res.status === 401) {
+    authEmail = null;
+    serverActivities = [];
+  }
+  if (!res.ok) {
+    const err = new Error(res.status === 401 ? 'Session expirée, reconnecte-toi' : 'Trace introuvable sur le serveur');
+    err.status = res.status;
+    throw err;
+  }
+  activity.gpxContent = await res.text();
+  return activity.gpxContent;
 }
 
 async function deleteActivity(id) {

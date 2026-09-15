@@ -32,6 +32,13 @@ function getParsedActivity(activity) {
   return parsedCache.get(activity.id);
 }
 
+// Tracé pour la carte : GPX complet s'il est déjà chargé (mode local, trace ouverte),
+// sinon l'aperçu léger envoyé par le serveur
+function getMapPoints(activity) {
+  if (activity.gpxContent) return getParsedActivity(activity).points;
+  return (activity.preview ?? []).map(([lat, lon]) => ({ lat, lon }));
+}
+
 // Couleur stable par trace : attribuée par ordre d'ajout (la plus ancienne = 1re couleur)
 function getActivityColors() {
   const all = loadActivities();
@@ -48,7 +55,7 @@ function renderMap({ fit = null } = {}) {
   drawBackgroundTracks(
     visible
       .filter((a) => a.id !== selectedActivityId)
-      .map((a) => ({ id: a.id, points: getParsedActivity(a).points, color: colors.get(a.id) })),
+      .map((a) => ({ id: a.id, points: getMapPoints(a), color: colors.get(a.id) })),
     (id) => selectActivity(id, { fit: null }),
     { dimmed: Boolean(trackData) }, // aucune trace sélectionnée : toutes en couleurs vives
   );
@@ -60,16 +67,26 @@ function renderMap({ fit = null } = {}) {
     document.getElementById('legend').hidden = true;
   }
 
-  if (fit === 'all') fitToPoints(visible.map((a) => getParsedActivity(a).points));
+  if (fit === 'all') fitToPoints(visible.map(getMapPoints));
   else if (fit === 'selected' && trackData) fitToPoints([trackData.points]);
 }
 
 // ── Select a trace ────────────────────────────────
-function selectActivity(id, { fit = 'selected' } = {}) {
+let selectToken = 0; // GPX chargés à la demande : seule la dernière sélection demandée s'affiche
+
+async function selectActivity(id, { fit = 'selected' } = {}) {
   const activity = loadActivities().find((a) => a.id === id);
   if (!activity) return;
+  const token = ++selectToken;
 
   try {
+    if (!activity.gpxContent) {
+      updateStats(null, activity.name, null);
+      document.getElementById('trackDate').textContent = 'Chargement de la trace…';
+      await loadActivityGpx(activity);
+      if (token !== selectToken) return; // une autre trace a été choisie entre-temps
+    }
+
     const parsed = getParsedActivity(activity);
     if (parsed.points.length < 2) {
       showToast('Trace vide ou invalide');
@@ -88,7 +105,8 @@ function selectActivity(id, { fit = 'selected' } = {}) {
     highlightSidebarItem(id);
   } catch (e) {
     console.error('GPX Error:', e);
-    showToast('Erreur lors de la lecture de la trace');
+    if (e.status === 401) updateAuthUI(); // session expirée → mode local
+    showToast(e.status ? e.message : 'Erreur lors de la lecture de la trace');
   }
 }
 
@@ -117,6 +135,7 @@ function refreshActivities({ selectId = null, fit = 'all' } = {}) {
 
 // ── Aucune trace sélectionnée : toutes les traces en couleurs vives, pas de graphiques ──
 function clearSelection({ fit = 'all' } = {}) {
+  selectToken++; // annule une trace encore en cours de chargement
   trackData = null;
   selectedActivityId = null;
   renderMap({ fit });
@@ -137,7 +156,7 @@ function clearSelection({ fit = 'all' } = {}) {
 }
 
 // ── Import GPX files (un par un, chaque trace s'affiche dès qu'elle est enregistrée) ──
-const MAX_FILE_MB = 10; // le serveur accepte 20 Mo de JSON (GPX échappé compris)
+const MAX_FILE_MB = 50; // le serveur accepte 60 Mo de JSON (GPX échappé compris)
 
 function importError(message) {
   return Object.assign(new Error(message), { status: 422 });
@@ -333,8 +352,49 @@ function repositionOverlays() {
 }
 
 // ── Button bindings ──────────────────────────────
-// Fonds de carte : un fond + surcouches cochables, choix mémorisé dans le navigateur
+// Fonds de carte : un fond + surcouches cochables. Choix mémorisé dans le navigateur
+// et sur le compte une fois connecté (retrouvé d'un appareil et d'une session à l'autre).
 const MAP_PREFS_KEY = 'gpxtooth_map';
+let mapPrefs = { base: 'osm', overlays: [] };
+
+function normalizeMapPrefs(prefs) {
+  return {
+    base: BASE_LAYERS[prefs?.base] ? prefs.base : 'osm',
+    overlays: Array.isArray(prefs?.overlays) ? prefs.overlays.filter((k) => OVERLAY_LAYERS[k]) : [],
+  };
+}
+
+function applyMapPrefs(next, { sync = true } = {}) {
+  mapPrefs = normalizeMapPrefs(next);
+  setTileLayer(mapPrefs.base);
+  for (const key of Object.keys(OVERLAY_LAYERS)) setOverlay(key, mapPrefs.overlays.includes(key));
+
+  document.querySelectorAll('#layerBaseList input').forEach((input) => {
+    input.checked = input.value === mapPrefs.base;
+  });
+  document.querySelectorAll('#layerOverlayList input').forEach((input) => {
+    input.checked = mapPrefs.overlays.includes(input.value);
+  });
+  const base = BASE_LAYERS[mapPrefs.base];
+  document.getElementById('layerMenuLabel').textContent = base.short ?? base.label;
+  // Crédits des sources affichées (licences), dans le menu plutôt que sur la carte
+  const credits = [mapPrefs.base, ...mapPrefs.overlays].map((k) => (BASE_LAYERS[k] ?? OVERLAY_LAYERS[k]).attr);
+  document.getElementById('layerCredits').textContent = [...new Set(credits)].join(' · ');
+
+  try {
+    localStorage.setItem(MAP_PREFS_KEY, JSON.stringify(mapPrefs));
+  } catch (e) {
+    // pas de mémorisation dans le navigateur, sans gravité
+  }
+  if (sync) saveServerPrefs({ ...serverPrefs, map: mapPrefs });
+}
+
+// Connecté : le fond du compte l'emporte ; compte encore sans préférence → on y enregistre celui du navigateur
+function syncMapPrefsWithAccount() {
+  if (!isServerMode()) return;
+  if (serverPrefs?.map) applyMapPrefs(serverPrefs.map, { sync: false });
+  else saveServerPrefs({ ...serverPrefs, map: mapPrefs });
+}
 
 function bindLayerMenu() {
   const btn = document.getElementById('layerMenuBtn');
@@ -342,46 +402,23 @@ function bindLayerMenu() {
   const baseList = document.getElementById('layerBaseList');
   const overlayList = document.getElementById('layerOverlayList');
 
-  let prefs = { base: 'osm', overlays: [] };
-  try {
-    prefs = { ...prefs, ...JSON.parse(localStorage.getItem(MAP_PREFS_KEY)) };
-  } catch (e) {
-    // stockage indisponible : fond par défaut
-  }
-  if (!BASE_LAYERS[prefs.base]) prefs.base = 'osm';
-  prefs.overlays = Array.isArray(prefs.overlays) ? prefs.overlays.filter((k) => OVERLAY_LAYERS[k]) : [];
-
-  const option = (type, key, cfg, checked) =>
-    `<label class="layer-menu__option"><input type="${type}" name="${type === 'radio' ? 'mapBase' : 'mapOverlay'}" value="${key}"${checked ? ' checked' : ''} /><span>${escapeHtml(cfg.label)}</span></label>`;
+  const option = (type, key, cfg) =>
+    `<label class="layer-menu__option"><input type="${type}" name="${type === 'radio' ? 'mapBase' : 'mapOverlay'}" value="${key}" /><span>${escapeHtml(cfg.label)}</span></label>`;
   baseList.innerHTML = Object.entries(BASE_LAYERS)
-    .map(([key, cfg]) => option('radio', key, cfg, key === prefs.base))
+    .map(([key, cfg]) => option('radio', key, cfg))
     .join('');
   overlayList.innerHTML = Object.entries(OVERLAY_LAYERS)
-    .map(([key, cfg]) => option('checkbox', key, cfg, prefs.overlays.includes(key)))
+    .map(([key, cfg]) => option('checkbox', key, cfg))
     .join('');
 
-  const apply = () => {
-    setTileLayer(prefs.base);
-    for (const key of Object.keys(OVERLAY_LAYERS)) setOverlay(key, prefs.overlays.includes(key));
-    const base = BASE_LAYERS[prefs.base];
-    document.getElementById('layerMenuLabel').textContent = base.short ?? base.label;
-    // Crédits des sources affichées (licences), dans le menu plutôt que sur la carte
-    const credits = [prefs.base, ...prefs.overlays].map((k) => (BASE_LAYERS[k] ?? OVERLAY_LAYERS[k]).attr);
-    document.getElementById('layerCredits').textContent = [...new Set(credits)].join(' · ');
-    try {
-      localStorage.setItem(MAP_PREFS_KEY, JSON.stringify(prefs));
-    } catch (e) {
-      // pas de mémorisation, sans gravité
-    }
-  };
-
   baseList.addEventListener('change', (e) => {
-    prefs.base = e.target.value;
-    apply();
+    applyMapPrefs({ ...mapPrefs, base: e.target.value });
   });
   overlayList.addEventListener('change', () => {
-    prefs.overlays = [...overlayList.querySelectorAll('input:checked')].map((input) => input.value);
-    apply();
+    applyMapPrefs({
+      ...mapPrefs,
+      overlays: [...overlayList.querySelectorAll('input:checked')].map((input) => input.value),
+    });
   });
 
   const setOpen = (open) => {
@@ -396,7 +433,14 @@ function bindLayerMenu() {
     if (e.key === 'Escape') setOpen(false);
   });
 
-  apply();
+  // Dernier choix de ce navigateur (celui du compte est appliqué après la connexion)
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(MAP_PREFS_KEY));
+  } catch (e) {
+    // stockage indisponible : fond par défaut
+  }
+  applyMapPrefs(saved ?? mapPrefs, { sync: false });
 }
 
 function bindMetricButtons() {
@@ -550,6 +594,7 @@ function bindAuth() {
         showToast(`Copie interrompue : ${err.message}`);
       }
     }
+    syncMapPrefsWithAccount();
     refreshStorageMode('Connecté — traces du serveur');
   });
 }
@@ -583,6 +628,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Session serveur active ? (sinon mode local)
   await initAuth();
   updateAuthUI();
+  syncMapPrefsWithAccount();
   refreshActivities({ fit: 'all' });
   repositionOverlays();
 

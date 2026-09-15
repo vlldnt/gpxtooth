@@ -1,0 +1,33 @@
+# ─── GPXtooth en LOCAL (Docker Desktop sur le Mac) ───────────────────────────
+# Lancer :   docker --context desktop-linux compose -f docker-compose.local.yml up -d --build
+# Ouvrir :   http://localhost:8088   (iPhone sur le même Wi-Fi : http://<IP-du-Mac>:8088)
+# Arrêter :  docker --context desktop-linux compose -f docker-compose.local.yml down
+#
+# --context desktop-linux : sans lui, la commande part sur le contexte actif (vps = prod).
+# Projet, volume et port séparés de la prod : rien n'est partagé avec le VPS.
+
+name: gpxtooth-local
+
+services:
+  gpxtooth:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8088:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./server
+    env_file: .env
+    environment:
+      COOKIE_SECURE: "false" # HTTP en local : le cookie de session doit passer sans HTTPS
+    volumes:
+      - gpxtooth-local-data:/data
+    restart: unless-stopped
+
+volumes:
+  gpxtooth-local-data:
