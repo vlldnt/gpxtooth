@@ -257,6 +257,21 @@ const server = http.createServer(async (req, res) => {
     }
 
     const match = pathname.match(/^\/api\/activities\/([\w-]{1,64})$/);
+    if (req.method === 'PATCH' && match) {
+      const { name } = await readJson(req);
+      if (typeof name !== 'string' || !name.trim() || name.length > 200) {
+        throw httpError(400, 'Nom de trace invalide');
+      }
+      const renamed = await updateActivities((activities) => {
+        const activity = activities.find((a) => a.id === match[1]);
+        if (activity) activity.name = name.trim();
+        return Boolean(activity);
+      });
+      return renamed
+        ? send(res, 200, { id: match[1], name: name.trim() })
+        : send(res, 404, { error: 'Trace introuvable' });
+    }
+
     if (req.method === 'DELETE' && match) {
       const removed = await updateActivities((activities) => {
         const idx = activities.findIndex((a) => a.id === match[1]);

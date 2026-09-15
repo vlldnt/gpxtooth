@@ -9,6 +9,7 @@
 let trackData = null; // trace sélectionnée : points, stats, côtes
 let currentMetric = 'speed';
 let selectedActivityId = null;
+let heroDismissed = false; // accueil fermé (carte, démo) : ne pas le réafficher
 const parsedCache = new Map(); // activity id → parseGPX (évite de re-parser à chaque rendu)
 
 const MOBILE_QUERY = window.matchMedia('(max-width: 768px)');
@@ -74,9 +75,21 @@ function selectActivity(id, { fit = 'selected' } = {}) {
   }
 }
 
+// ── Hero : seulement pour un visiteur non connecté, sans trace ──
+function updateHero() {
+  setHeroVisible(!heroDismissed && !isServerMode() && loadActivities().length === 0);
+}
+
+function openMap() {
+  heroDismissed = true;
+  setHeroVisible(false);
+  if (map) map.invalidateSize();
+}
+
 // ── Refresh list + map (données, filtre ou mode de stockage changés) ──
 function refreshActivities({ selectId = null, fit = 'all' } = {}) {
   renderSidebar();
+  updateHero();
   const visible = getVisibleActivities();
 
   if (visible.length === 0) {
@@ -85,55 +98,97 @@ function refreshActivities({ selectId = null, fit = 'all' } = {}) {
     clearTrackLayers();
     setMapEmpty(true);
     document.getElementById('mapOverlayStats').hidden = true;
-    setHeroVisible(loadActivities().length === 0);
+    // Filtres sans résultat : ne pas laisser l'en-tête et les graphiques de l'ancienne trace
+    updateStats(null, 'Carte interactive', null);
+    for (const [canvasId, key] of [['hrChart', 'hr'], ['speedChart', 'speed'], ['elevChart', 'elev'], ['gradeChart', 'grade']]) {
+      clearChart(canvasId, key);
+    }
+    updateClimbStats([]);
     return;
   }
 
-  setHeroVisible(false);
   const keepId = [selectId, selectedActivityId].find(
     (id) => id && visible.some((a) => a.id === id),
   );
   selectActivity(keepId || visible[0].id, { fit });
 }
 
-// ── Import a new GPX file (save + select) ─────────
-async function importGPX(xmlString, filename) {
-  try {
-    const parsed = parseGPX(xmlString);
+// ── Import GPX files (un par un, chaque trace s'affiche dès qu'elle est enregistrée) ──
+const MAX_FILE_MB = 10; // le serveur accepte 20 Mo de JSON (GPX échappé compris)
 
-    if (parsed.points.length < 2) {
-      showToast('Fichier GPX vide ou invalide');
-      return;
-    }
+function importError(message) {
+  return Object.assign(new Error(message), { status: 422 });
+}
 
-    // Prompt for name, prefilled with filename (sans .gpx)
-    const defaultName = filename
-      ? filename.replace(/\.gpx$/i, '')
-      : parsed.name;
-    const userName = prompt('Nom de la trace :', defaultName);
-    if (userName === null) return; // cancelled
-    const finalName = userName.trim() || defaultName;
-
-    const stats = calcStats(parsed.points);
-    if (!stats) return;
-
-    const actType = parseActivityType(
-      new DOMParser().parseFromString(xmlString, 'application/xml'),
-    );
-    const id = await saveActivity(finalName, parsed.date, actType, stats, xmlString, filename);
-    showToast(
-      isServerMode()
-        ? `Trace enregistrée sur le serveur : ${finalName}`
-        : `Trace sauvegardée : ${finalName}`,
-    );
-
-    sidebarFilter = 'all'; // la nouvelle trace doit être visible
-    refreshActivities({ selectId: id, fit: 'selected' });
-  } catch (e) {
-    console.error('GPX Error:', e);
-    if (e.status === 401) updateAuthUI(); // session expirée → mode local
-    showToast(e.status ? e.message : "Erreur lors de l'import GPX");
+// Lit et enregistre un fichier ; renvoie { id, name }, ou null si le nom est annulé
+async function saveGPXFile(file, { askName }) {
+  if (file.size > MAX_FILE_MB * 1024 * 1024) {
+    throw importError(`Fichier trop volumineux (${MAX_FILE_MB} Mo max)`);
   }
+  const xmlString = await file.text();
+  const parsed = parseGPX(xmlString);
+  const stats = calcStats(parsed.points); // null si moins de 2 points
+  if (!stats) throw importError('Fichier GPX vide ou invalide');
+
+  const defaultName = file.name.replace(/\.gpx$/i, '') || parsed.name;
+  let name = defaultName;
+  if (askName) {
+    const input = prompt('Nom de la trace :', defaultName);
+    if (input === null) return null;
+    name = input.trim() || defaultName;
+  }
+
+  const actType = parseActivityType(new DOMParser().parseFromString(xmlString, 'application/xml'));
+  const id = await saveActivity(name, parsed.date, actType, stats, xmlString, file.name);
+  parsedCache.set(id, parsed); // évite de re-parser le fichier à l'affichage
+  return { id, name };
+}
+
+// Un seul fichier : nom demandé. Plusieurs : noms des fichiers + toast de progression
+async function importFiles(files) {
+  if (files.length === 0) return;
+  const single = files.length === 1;
+  const errors = [];
+  let last = null;
+  let imported = 0;
+
+  resetFilters(); // les nouvelles traces doivent être visibles
+  for (const [i, file] of files.entries()) {
+    if (!single) showProgressToast(`Import ${i + 1}/${files.length} · ${file.name}`, i / files.length);
+    try {
+      last = await saveGPXFile(file, { askName: single });
+      if (!last) return; // nom annulé
+      imported++;
+      refreshActivities({ selectId: last.id, fit: single ? 'selected' : 'all' });
+    } catch (e) {
+      console.error('GPX Error:', file.name, e);
+      errors.push({ file: file.name, status: e.status, message: e.status ? e.message : "Erreur lors de l'import GPX" });
+      if (e.status === 401 || e.status === 507) break; // session expirée, stockage plein : inutile de continuer
+    }
+  }
+
+  if (errors.some((e) => e.status === 401)) {
+    updateAuthUI(); // session expirée → mode local
+    refreshActivities();
+  }
+
+  if (single) {
+    if (errors.length) showToast(errors[0].message);
+    else showToast(isServerMode() ? `Trace enregistrée sur le serveur : ${last.name}` : `Trace sauvegardée : ${last.name}`);
+    return;
+  }
+
+  showToast(importSummary(imported, errors), { duration: errors.length ? 7000 : 3200 });
+}
+
+// « 3 traces importées · 2 échecs : a.gpx, b.gpx »
+function importSummary(imported, errors) {
+  const s = (n) => (n > 1 ? 's' : '');
+  const parts = [`${imported} trace${s(imported)} importée${s(imported)}${isServerMode() ? ' sur le serveur' : ''}`];
+  const blocking = errors.find((e) => e.status === 401 || e.status === 507);
+  if (blocking) parts.push(blocking.message);
+  else if (errors.length) parts.push(`${errors.length} échec${s(errors.length)} : ${errors.map((e) => e.file).join(', ')}`);
+  return parts.join(' · ');
 }
 
 // ── Redraw all charts helper ──────────────────────
@@ -156,15 +211,8 @@ function redrawAllCharts() {
 
 // ── File input handlers ───────────────────────────
 function bindFileInputs() {
-  const handleFile = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => importGPX(e.target.result, file.name);
-    reader.readAsText(file);
-  };
-
   document.getElementById('fileInput').addEventListener('change', (e) => {
-    handleFile(e.target.files[0]);
+    importFiles([...e.target.files]); // copie avant de vider l'input
     e.target.value = '';
   });
 }
@@ -189,13 +237,31 @@ function showDemo(xmlString) {
   trackData = { ...parsed, stats, climbs: calcClimbs(parsed.points) };
   selectedActivityId = null;
 
-  setHeroVisible(false);
+  openMap();
   updateStats(stats, 'Démo — sortie VTT', parsed.date);
   updateMapOverlay(stats);
   renderMap({ fit: 'selected' });
   redrawAllCharts();
   highlightSidebarItem(null);
   showToast('Démo non enregistrée — importe ton fichier GPX pour le garder');
+}
+
+// ── Rename a saved trace ──────────────────────────
+async function renameTrace(id) {
+  const activity = loadActivities().find((a) => a.id === id);
+  if (!activity) return;
+  const name = prompt('Nouveau nom de la trace :', activity.name)?.trim();
+  if (!name || name === activity.name) return;
+
+  try {
+    await renameActivity(id, name);
+    refreshActivities({ fit: null });
+    showToast(`Trace renommée : ${name}`);
+  } catch (e) {
+    console.error('Rename error:', e);
+    if (e.status === 401) updateAuthUI(); // session expirée → mode local
+    showToast(e.message || 'Erreur lors du renommage');
+  }
 }
 
 // ── Delete a saved trace ──────────────────────────
@@ -292,6 +358,7 @@ function bindDemoButtons() {
   document
     .getElementById('btnDemo')
     ?.addEventListener('click', () => loadDemoFile());
+  document.getElementById('btnOpenMap')?.addEventListener('click', openMap);
 }
 
 function setupImportButton() {
@@ -365,7 +432,7 @@ function bindThemeToggle() {
 
 // ── Auth (connexion propriétaire) ─────────────────
 function refreshStorageMode(message) {
-  sidebarFilter = 'all';
+  resetFilters();
   selectedActivityId = null;
   updateAuthUI();
   refreshActivities({ fit: 'all' });

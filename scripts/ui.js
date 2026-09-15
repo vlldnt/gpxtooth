@@ -8,13 +8,23 @@
 
 // ── Toast ─────────────────────────────────────────
 let toastTimer = null;
-function showToast(msg) {
+function showToast(msg, { duration = 3200 } = {}) {
   const toast = document.getElementById('toast');
   document.getElementById('toastMsg').textContent = msg;
   if (toastTimer) clearTimeout(toastTimer);
+  toast.classList.remove('is-progress');
   toast.offsetHeight; // reflow
   toast.classList.add('show');
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// Progression (import de plusieurs fichiers) : reste affiché jusqu'au prochain showToast
+function showProgressToast(msg, ratio) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.style.setProperty('--toast-progress', ratio);
+  if (toastTimer) clearTimeout(toastTimer);
+  toast.classList.add('show', 'is-progress');
 }
 
 // ── Hero (écran d'accueil en overlay) ─────────────
@@ -93,7 +103,8 @@ function escapeHtml(value) {
 }
 
 // ── Traces panel (liste + filtre par type) ───────
-let sidebarFilter = 'all';
+let sidebarFilter = 'all'; // type d'activité
+let sidebarYear = 'all';
 
 const TYPE_LABELS = {
   all: 'Toutes',
@@ -104,11 +115,33 @@ const TYPE_LABELS = {
   other: 'Autre',
 };
 
+function activityYear(activity) {
+  return String(new Date(activity.date).getFullYear());
+}
+
+function resetFilters() {
+  sidebarFilter = 'all';
+  sidebarYear = 'all';
+}
+
 function getVisibleActivities() {
-  const activities = loadActivities();
-  return sidebarFilter === 'all'
-    ? activities
-    : activities.filter((a) => a.type === sidebarFilter);
+  return loadActivities().filter(
+    (a) =>
+      (sidebarFilter === 'all' || a.type === sidebarFilter) &&
+      (sidebarYear === 'all' || activityYear(a) === sidebarYear),
+  );
+}
+
+// Une ligne de filtres : libellé + « Toutes » + une puce par valeur
+function filterRow(label, key, values, active, labelOf) {
+  const buttons = ['all', ...values]
+    .map(
+      (v) =>
+        `<button type="button" class="traces-filter${active === v ? ' active' : ''}" data-${key}="${escapeHtml(v)}">${escapeHtml(v === 'all' ? 'Toutes' : labelOf(v))}</button>`,
+    )
+    .join('');
+  return `<div class="traces-filters__row" role="group" aria-label="Filtrer par ${label.toLowerCase()}">
+    <span class="traces-filters__label">${label}</span>${buttons}</div>`;
 }
 
 function renderSidebar() {
@@ -119,27 +152,35 @@ function renderSidebar() {
 
   const activities = loadActivities();
   const types = [...new Set(activities.map((a) => a.type))];
+  const years = [...new Set(activities.map(activityYear))].sort((a, b) => b - a);
   if (sidebarFilter !== 'all' && !types.includes(sidebarFilter)) sidebarFilter = 'all';
-  count.textContent = activities.length;
+  if (sidebarYear !== 'all' && !years.includes(sidebarYear)) sidebarYear = 'all';
 
-  // Filtre simple par type : seulement s'il y a plusieurs types
-  filtersEl.hidden = types.length < 2;
-  filtersEl.innerHTML = ['all', ...types]
-    .map(
-      (t) =>
-        `<button type="button" class="traces-filter${sidebarFilter === t ? ' active' : ''}" data-type="${escapeHtml(t)}">${escapeHtml(TYPE_LABELS[t] ?? t)}</button>`,
-    )
-    .join('');
-  filtersEl.querySelectorAll('.traces-filter').forEach((btn) => {
+  const visible = getVisibleActivities();
+  count.textContent =
+    visible.length === activities.length ? activities.length : `${visible.length}/${activities.length}`;
+
+  // Filtres par activité et par année dès qu'il y a de quoi trier
+  filtersEl.hidden = activities.length < 2;
+  filtersEl.innerHTML =
+    filterRow('Activité', 'type', types, sidebarFilter, (t) => TYPE_LABELS[t] ?? t) +
+    filterRow('Année', 'year', years, sidebarYear, (y) => y);
+  filtersEl.querySelectorAll('[data-type]').forEach((btn) => {
     btn.addEventListener('click', () => {
       sidebarFilter = btn.dataset.type;
       refreshActivities({ fit: 'all' });
     });
   });
+  filtersEl.querySelectorAll('[data-year]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sidebarYear = btn.dataset.year;
+      refreshActivities({ fit: 'all' });
+    });
+  });
 
-  const visible = getVisibleActivities();
   if (visible.length === 0) {
-    list.innerHTML = '<li class="traces-panel__empty">Aucune trace enregistrée</li>';
+    const empty = activities.length ? 'Aucune trace pour ces filtres' : 'Aucune trace enregistrée';
+    list.innerHTML = `<li class="traces-panel__empty">${empty}</li>`;
     return;
   }
 
@@ -165,6 +206,11 @@ function renderSidebar() {
           </span>
           <span class="trace-item__type">${escapeHtml(TYPE_LABELS[a.type] ?? a.type)}</span>
         </button>
+        <button type="button" class="trace-item__edit" title="Renommer" aria-label="Renommer la trace ${escapeHtml(a.name)}">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M4 20h4L18.768 9.232a2.5 2.5 0 00-3.536-3.536L4 16.464V20z" />
+          </svg>
+        </button>
         <button type="button" class="trace-item__delete" title="Supprimer" aria-label="Supprimer la trace ${escapeHtml(a.name)}">
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6l12 12M18 6L6 18" />
@@ -180,6 +226,7 @@ function renderSidebar() {
       selectActivity(id);
       if (MOBILE_QUERY.matches) setTracesPanelOpen(false);
     });
+    item.querySelector('.trace-item__edit').addEventListener('click', () => renameTrace(id));
     item.querySelector('.trace-item__delete').addEventListener('click', () => removeActivity(id));
     // Survol : aperçu opaque de la trace sur la carte
     item.addEventListener('mouseenter', () => previewTrack(id, true));

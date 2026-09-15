@@ -18,12 +18,13 @@ function isServerMode() {
 }
 
 // ── API client ───────────────────────────────────
-async function api(path, { method = 'GET', body } = {}) {
+async function api(path, { method = 'GET', body, timeout } = {}) {
   const res = await fetch('api/' + path, {
     method,
     credentials: 'same-origin',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
+    signal: timeout ? AbortSignal.timeout(timeout) : undefined,
   });
   const isJson = (res.headers.get('content-type') || '').includes('application/json');
   const data = isJson ? await res.json() : null;
@@ -45,7 +46,8 @@ async function api(path, { method = 'GET', body } = {}) {
 // ── Auth ─────────────────────────────────────────
 async function initAuth() {
   try {
-    const me = await api('me');
+    // Délai court : si l'API ne répond pas, le site démarre quand même en mode local
+    const me = await api('me', { timeout: 5000 });
     authEmail = me.email;
     serverActivities = await api('activities');
   } catch (e) {
@@ -85,9 +87,17 @@ function loadActivities() {
   return isServerMode() ? serverActivities : loadLocalActivities();
 }
 
+// Écrit d'abord : si le quota (~5 Mo) est dépassé, le cache reste cohérent avec le stockage
 function saveActivities(activities) {
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(activities));
+  } catch (e) {
+    if (e.name !== 'QuotaExceededError') throw e;
+    const err = new Error('Stockage du navigateur plein : supprime des traces ou connecte-toi');
+    err.status = 507; // Insufficient Storage
+    throw err;
+  }
   localActivities = activities;
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(activities));
 }
 
 // Retourne l'id de la trace enregistrée
@@ -121,6 +131,16 @@ async function deleteActivity(id) {
     serverActivities = serverActivities.filter((a) => a.id !== id);
   } else {
     saveActivities(loadLocalActivities().filter((a) => a.id !== id));
+  }
+}
+
+async function renameActivity(id, name) {
+  const rename = (activities) => activities.map((a) => (a.id === id ? { ...a, name } : a));
+  if (isServerMode()) {
+    await api('activities/' + encodeURIComponent(id), { method: 'PATCH', body: { name } });
+    serverActivities = rename(serverActivities);
+  } else {
+    saveActivities(rename(loadLocalActivities()));
   }
 }
 

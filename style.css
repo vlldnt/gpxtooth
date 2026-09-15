@@ -712,10 +712,26 @@ button {
 
 .traces-panel__filters {
   display: flex;
-  flex-wrap: wrap;
-  gap: .25rem;
+  flex-direction: column;
+  gap: .3rem;
   padding: .5rem .625rem .25rem;
   flex-shrink: 0;
+}
+
+.traces-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem;
+}
+
+.traces-filters__label {
+  width: 3.4rem;
+  font-size: .58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--c-text-3);
 }
 
 .traces-filter {
@@ -833,6 +849,7 @@ button {
   min-width: 0;
 }
 
+.trace-item__edit,
 .trace-item__delete {
   display: flex;
   align-items: center;
@@ -850,9 +867,21 @@ button {
   transition: opacity .15s, color .15s, background .15s;
 }
 
+.trace-item:hover .trace-item__edit,
 .trace-item:hover .trace-item__delete,
+.trace-item__edit:focus-visible,
 .trace-item__delete:focus-visible {
   opacity: 1;
+}
+
+.trace-item__edit:hover {
+  color: var(--c-green);
+  background: var(--c-tint);
+}
+
+.trace-item__edit:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: -2px;
 }
 
 .trace-item__delete:hover {
@@ -867,6 +896,7 @@ button {
 
 /* Écrans tactiles : pas de survol, bouton toujours visible */
 @media (hover: none) {
+  .trace-item__edit,
   .trace-item__delete {
     opacity: .6;
   }
@@ -1617,6 +1647,59 @@ button {
 .toast svg {
   color: var(--c-green);
   flex-shrink: 0;
+}
+
+.toast {
+  max-width: calc(100vw - 2rem);
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+#toastMsg {
+  min-width: 0;
+}
+
+/* Import de plusieurs fichiers : spinner + fine barre de progression */
+.toast__spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid var(--c-border-2);
+  border-top-color: var(--c-green);
+  border-radius: 50%;
+  animation: toast-spin .7s linear infinite;
+}
+
+.toast.is-progress .toast__spinner {
+  display: block;
+}
+
+.toast.is-progress svg {
+  display: none;
+}
+
+.toast.is-progress #toastMsg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toast.is-progress::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: calc(var(--toast-progress, 0) * 100%);
+  background: var(--c-green);
+  transition: width .3s ease;
+}
+
+@keyframes toast-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .toast.show {

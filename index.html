@@ -86,7 +86,7 @@
   </nav>
 
   <!-- Input fichier caché (sr-only), déclenché par les boutons d'import -->
-  <input id="fileInput" type="file" accept=".gpx" class="sr-only" />
+  <input id="fileInput" type="file" accept=".gpx" multiple class="sr-only" />
 
   <!-- ━━━ DASHBOARD ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        SPA plein écran (pas de scroll de page).
@@ -154,8 +154,8 @@
             </svg>
           </button>
           <div class="traces-panel__body" id="tracesBody">
-            <div class="traces-panel__filters" id="sidebarFilters" role="group" aria-label="Filtrer par type"
-              hidden></div>
+            <!-- Filtres par activité et par année (rendus par ui.js) -->
+            <div class="traces-panel__filters" id="sidebarFilters" hidden></div>
             <ul class="traces-panel__list" id="sidebarList">
               <li class="traces-panel__empty">Aucune trace enregistrée</li>
             </ul>
@@ -297,7 +297,7 @@
     </div> <!-- /panel--map -->
 
     <!-- ━━━ ACCUEIL (overlay) ━━━━━━━━━━━━━━━━━━━━━━━━━
-         Affiché par-dessus la carte quand il n'y a aucune trace.
+         Affiché par-dessus la carte seulement pour un visiteur non connecté sans trace.
          Contient : titre, description, boutons d'import/démo, fonctionnalités, liens.
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
     <section class="hero hidden" id="hero" aria-labelledby="heroTitle">
@@ -339,10 +339,12 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Importer un fichier GPX
+            Importer des fichiers GPX
           </button>
           <!-- Bouton secondaire : charge un fichier GPX de démo -->
           <button id="btnDemo" class="btn btn--ghost btn--lg">Voir la démo →</button>
+          <!-- Accès rapide : ferme l'accueil et affiche la carte (vide) -->
+          <button id="btnOpenMap" class="btn btn--ghost btn--lg">Accéder à la carte</button>
         </div>
 
         <!-- Fonctionnalités (version compacte) -->
@@ -441,6 +443,7 @@
   <!-- Toast : notification temporaire (ex: "Fichier importé avec succès")
        Affiché/masqué par app.js. aria-live="polite" pour l'accessibilité. -->
   <div id="toast" class="toast" role="status" aria-live="polite">
+    <span class="toast__spinner" aria-hidden="true"></span>
     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
     </svg>
