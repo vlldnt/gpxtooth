@@ -57,6 +57,7 @@
   --c-tint: rgba(255, 255, 255, .06);
   --c-tint-strong: rgba(255, 255, 255, .1);
   --c-overlay: rgba(7, 8, 15, .88);
+  --c-map-chip: rgba(7, 8, 15, .5);
   --c-popup: #161929;
   --c-crosshair: rgba(255, 255, 255, .45);
   --c-hero-grid: rgba(255, 255, 255, .025);
@@ -104,6 +105,7 @@
   --c-tint: rgba(15, 23, 42, .05);
   --c-tint-strong: rgba(15, 23, 42, .09);
   --c-overlay: rgba(255, 255, 255, .92);
+  --c-map-chip: rgba(255, 255, 255, .6);
   --c-popup: #ffffff;
   --c-crosshair: rgba(15, 23, 42, .45);
   --c-hero-grid: rgba(15, 23, 42, .05);
@@ -651,6 +653,12 @@ button {
   overflow: hidden;
 }
 
+/* Mode sombre : gris plus clairs dans le panneau (lisible sur la carte) */
+:root:not([data-theme="light"]) .traces-panel {
+  --c-text-2: #c3c9d6;
+  --c-text-3: #9aa3b6;
+}
+
 .traces-panel.is-collapsed {
   width: auto;
 }
@@ -786,6 +794,11 @@ button {
   text-align: left;
   opacity: .55;
   transition: opacity .15s, background .15s;
+}
+
+/* :where() garde la spécificité basse : survol et sélection restent à 1 */
+:where(:root:not([data-theme="light"])) .trace-item__btn {
+  opacity: .85;
 }
 
 .trace-item__btn:hover,
@@ -2082,119 +2095,6 @@ button {
 }
 
 /* ════════════════════════════════════════════════════════════
-   FULLSCREEN MAP MODE
-   ════════════════════════════════════════════════════════════ */
-.panel--map.fullscreen {
-  position: fixed;
-  inset: 0;
-  padding: 0;
-  z-index: 9000;
-  border-radius: 0;
-  border: none;
-  display: flex;
-  flex-direction: column;
-  background: var(--c-bg);
-}
-
-/* Header bar: contains title + layer buttons + toolbar + fullscreen btn */
-.panel--map.fullscreen .panel__header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9002;
-  background: var(--c-overlay);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  padding: .5rem 1.25rem;
-  border-bottom: 1px solid var(--c-border);
-  flex-wrap: wrap;
-  gap: .5rem;
-}
-
-.panel--map.fullscreen .map-stage {
-  flex: 1;
-  border-radius: 0;
-  border: none;
-}
-
-.panel--map.fullscreen .charts-dots {
-  display: none;
-}
-
-/* Toolbar inline in the header */
-.panel--map.fullscreen .map-toolbar {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 9002;
-  background: var(--c-overlay);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  padding: .5rem .75rem;
-  border-radius: 0 0 .75rem .75rem;
-  border: 1px solid var(--c-border);
-  border-top: none;
-  margin-top: 0;
-}
-
-/* Map overlay stats: repositioned above charts via JS */
-.panel--map.fullscreen .map-overlay-stats {
-  left: auto;
-  right: 1rem;
-  z-index: 9002;
-}
-
-/* Charts row overlaid at the bottom of the fullscreen map */
-.panel--map.fullscreen .charts-row {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 9001;
-  background: var(--c-overlay);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--c-border);
-  padding: .75rem 1rem;
-  gap: .75rem;
-}
-
-.panel--map.fullscreen .charts-row .panel--chart {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: .5rem;
-}
-
-.panel--map.fullscreen .charts-row .panel__header {
-  position: static;
-  background: transparent;
-  backdrop-filter: none;
-  padding: 0 0 .25rem 0;
-  border-bottom: none;
-}
-
-.panel--map.fullscreen .charts-row .chart-canvas {
-  height: 90px !important;
-}
-
-.panel--map.fullscreen .charts-row .chart-values {
-  padding-top: .35rem;
-}
-
-/* Push Leaflet zoom controls below the header in fullscreen */
-.panel--map.fullscreen .leaflet-top {
-  top: 4rem;
-}
-
-/* Fullscreen button icon swap */
-.panel--map.fullscreen #btnFullscreen svg path {
-  d: path("M9 9H4V4h5M15 9h5V4h-5M9 15H4v5h5M15 15h5v5h-5");
-}
-
-/* ════════════════════════════════════════════════════════════
    MOBILE OPTIMIZATIONS
    ════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
@@ -2474,5 +2374,416 @@ button {
 
   .btn__label {
     display: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   PENTE MAX (graphique des côtes)
+   ════════════════════════════════════════════════════════════ */
+.cv-label--max,
+.cv-val--max {
+  color: var(--c-red);
+}
+
+/* ════════════════════════════════════════════════════════════
+   GRAPHIQUE COMBINÉ (mobile) : remplace le carrousel
+   ════════════════════════════════════════════════════════════ */
+.chart-combined {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .charts-row,
+  .charts-dots {
+    display: none;
+  }
+
+  .chart-combined {
+    display: block;
+    flex-shrink: 0;
+    margin-top: .5rem;
+    padding: .5rem .625rem .45rem;
+  }
+}
+
+.combined-chips {
+  display: flex;
+  gap: .3rem;
+  margin-bottom: .35rem;
+}
+
+.combined-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .3rem .65rem;
+  border-radius: 100px;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-text-2);
+  font-size: .72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color .15s, background .15s, border-color .15s;
+}
+
+.combined-chip::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--series);
+  opacity: .5;
+}
+
+.combined-chip.active {
+  color: var(--c-text);
+  border-color: var(--series);
+  background: color-mix(in srgb, var(--series) 16%, transparent);
+}
+
+.combined-chip.active::before {
+  opacity: 1;
+}
+
+.combined-chip:disabled {
+  opacity: .35;
+}
+
+.chart-combined .chart-canvas {
+  height: 110px;
+}
+
+.combined-wrap {
+  cursor: ew-resize;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.combined-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--c-text);
+  opacity: .85;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.combined-cursor__handle {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 16px;
+  height: 16px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--series, var(--c-green));
+  border: 2px solid var(--c-text);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .35);
+}
+
+.combined-values {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .25rem;
+  padding-top: .55rem;
+  font-size: .72rem;
+}
+
+.combined-values .cv-item {
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.combined-values .cv-label {
+  font-size: .56rem;
+}
+
+/* ════════════════════════════════════════════════════════════
+   CARTE PLUS GRANDE : contrôles sur la carte, barre et données compactes
+   ════════════════════════════════════════════════════════════ */
+.nav {
+  padding-block: .35rem;
+}
+
+.btn--xs {
+  gap: .35rem;
+  font-size: .72rem;
+  padding: .3rem .7rem;
+  border-radius: .5rem;
+}
+
+.panel--map > .panel__header .icon-pill {
+  width: 24px;
+  height: 24px;
+  border-radius: .45rem;
+}
+
+/* Contrôles posés sur la carte (haut droite) : petits, fond translucide */
+.map-controls {
+  position: absolute;
+  top: .5rem;
+  right: .5rem;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: .3rem;
+  pointer-events: none;
+}
+
+.map-controls > * {
+  pointer-events: auto;
+}
+
+.map-controls__row,
+.map-controls .map-toolbar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: .25rem;
+  margin: 0;
+  overflow: visible;
+}
+
+.map-controls .map-toolbar {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.map-controls .layer-group,
+.map-controls .metric-group,
+.map-controls .legend,
+.map-controls__btn {
+  background: var(--c-map-chip);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--c-border);
+  box-shadow: none;
+}
+
+.map-controls .layer-group {
+  gap: .1rem;
+  padding: .12rem;
+  border-radius: .5rem;
+}
+
+.map-controls .layer-btn {
+  padding: .15rem .45rem;
+  font-size: .6rem;
+  border-radius: .35rem;
+}
+
+.map-controls__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: .5rem;
+}
+
+.map-controls .metric-group {
+  gap: .1rem;
+  padding: .12rem;
+  border-radius: 100px;
+}
+
+.map-controls .metric-btn {
+  padding: .12rem .5rem;
+  font-size: .62rem;
+  border-color: transparent;
+  color: var(--c-text-2);
+}
+
+.map-controls .metric-btn.active {
+  color: var(--c-green);
+  border-color: rgba(0, 229, 120, .3);
+}
+
+.map-controls .legend {
+  margin-left: 0;
+  gap: .3rem;
+  padding: .1rem .45rem;
+  border-radius: 100px;
+}
+
+.map-controls .legend__bar {
+  width: 48px;
+  height: 4px;
+}
+
+.map-controls .legend__label {
+  font-size: .58rem;
+}
+
+/* Zoom Leaflet déplacé dans les contrôles */
+.map-controls .leaflet-control-zoom {
+  float: none;
+  margin: 0;
+}
+
+/* Données en bas : plus compactes */
+.charts-row {
+  gap: .5rem;
+  margin-top: .45rem;
+}
+
+.panel--chart {
+  padding: .4rem .6rem .35rem;
+}
+
+.panel--chart .panel__header {
+  gap: .45rem;
+  margin-bottom: .1rem;
+}
+
+.panel--chart .icon-pill {
+  width: 20px;
+  height: 20px;
+  border-radius: .4rem;
+}
+
+.panel--chart .icon-pill svg {
+  width: 11px;
+  height: 11px;
+}
+
+.charts-row .chart-canvas {
+  height: 64px;
+}
+
+.chart-values {
+  padding-top: .15rem;
+  font-size: .66rem;
+}
+
+/* Mobile : cadre des données de hauteur fixe */
+@media (max-width: 768px) {
+  .chart-combined {
+    height: 10.75rem;
+    overflow: hidden;
+    margin-top: .4rem;
+    padding: .4rem .55rem;
+  }
+
+  .chart-combined .chart-canvas {
+    height: 92px;
+  }
+
+  .combined-chips {
+    margin-bottom: .25rem;
+  }
+
+  .combined-chip {
+    padding: .2rem .55rem;
+    font-size: .66rem;
+  }
+
+  .combined-values {
+    padding-top: .45rem;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   CARTE BORD À BORD PAR DÉFAUT (plus de mode plein écran)
+   La barre du haut reste visible pour importer. z-index 0 : contexte
+   d'empilement, l'écran d'accueil (10) reste au-dessus des surimpressions.
+   ════════════════════════════════════════════════════════════ */
+.panel--map,
+.panel--map:hover {
+  position: relative;
+  z-index: 0;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: var(--c-bg);
+}
+
+.panel--map .map-stage {
+  border-radius: 0;
+  border: none;
+}
+
+/* Nom de la trace : barre translucide en haut (mobile), pastille (desktop) */
+.panel--map > .panel__header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 600;
+  margin: 0;
+  padding: .35rem .75rem;
+  background: var(--c-overlay);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--c-border);
+}
+
+/* Données en surimpression en bas de la carte */
+.panel--map .charts-row,
+.panel--map .chart-combined {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 600;
+  margin: 0;
+  background: var(--c-overlay);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: none;
+  border-top: 1px solid var(--c-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.panel--map .charts-row {
+  padding: .35rem .75rem;
+}
+
+.panel--map .charts-row .panel--chart {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: .25rem .4rem;
+}
+
+@media (min-width: 769px) {
+  .panel--map > .panel__header {
+    top: .6rem;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    max-width: min(34%, 26rem);
+    padding: .3rem .8rem;
+    text-align: center;
+    background: var(--c-map-chip);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--c-border);
+    border-radius: .7rem;
+    pointer-events: none;
+  }
+
+  .panel--map > .panel__header .icon-pill {
+    display: none;
+  }
+
+  .panel--map > .panel__header .panel__name {
+    font-size: .8rem;
+  }
+
+  .panel--map > .panel__header .panel__sub {
+    font-size: .64rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }

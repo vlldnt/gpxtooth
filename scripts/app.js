@@ -39,10 +39,15 @@ function renderMap({ fit = null } = {}) {
       .filter((a) => a.id !== selectedActivityId)
       .map((a) => ({ id: a.id, points: getParsedActivity(a).points, color: colors.get(a.id) })),
     (id) => selectActivity(id, { fit: null }),
+    { dimmed: Boolean(trackData) }, // aucune trace sélectionnée : toutes en couleurs vives
   );
 
-  if (trackData) drawTrack(trackData.points, currentMetric, colors.get(selectedActivityId));
-  else setMapEmpty(true);
+  if (trackData) {
+    drawTrack(trackData.points, currentMetric, colors.get(selectedActivityId));
+  } else {
+    setMapEmpty(visible.length === 0);
+    document.getElementById('legend').hidden = true;
+  }
 
   if (fit === 'all') fitToPoints(visible.map((a) => getParsedActivity(a).points));
   else if (fit === 'selected' && trackData) fitToPoints([trackData.points]);
@@ -61,7 +66,7 @@ function selectActivity(id, { fit = 'selected' } = {}) {
     }
 
     const stats = calcStats(parsed.points); // renseigne aussi _cumDist / _speed
-    trackData = { ...parsed, stats, climbs: calcClimbs(parsed.points) };
+    trackData = { ...parsed, stats, climbs: calcClimbs(parsed.points), steepest: calcSteepest(parsed.points) };
     selectedActivityId = id;
 
     updateStats(stats, activity.name, activity.date ? new Date(activity.date) : parsed.date);
@@ -91,26 +96,32 @@ function refreshActivities({ selectId = null, fit = 'all' } = {}) {
   renderSidebar();
   updateHero();
   const visible = getVisibleActivities();
-
-  if (visible.length === 0) {
-    trackData = null;
-    selectedActivityId = null;
-    clearTrackLayers();
-    setMapEmpty(true);
-    document.getElementById('mapOverlayStats').hidden = true;
-    // Filtres sans résultat : ne pas laisser l'en-tête et les graphiques de l'ancienne trace
-    updateStats(null, 'Carte interactive', null);
-    for (const [canvasId, key] of [['hrChart', 'hr'], ['speedChart', 'speed'], ['elevChart', 'elev'], ['gradeChart', 'grade']]) {
-      clearChart(canvasId, key);
-    }
-    updateClimbStats([]);
-    return;
-  }
-
   const keepId = [selectId, selectedActivityId].find(
     (id) => id && visible.some((a) => a.id === id),
   );
-  selectActivity(keepId || visible[0].id, { fit });
+  if (keepId) selectActivity(keepId, { fit });
+  else clearSelection({ fit });
+}
+
+// ── Aucune trace sélectionnée : toutes les traces en couleurs vives, pas de graphiques ──
+function clearSelection({ fit = 'all' } = {}) {
+  trackData = null;
+  selectedActivityId = null;
+  renderMap({ fit });
+  document.getElementById('mapOverlayStats').hidden = true;
+
+  const count = getVisibleActivities().length;
+  updateStats(null, count ? 'Toutes les traces' : 'Carte interactive', null);
+  if (count) {
+    document.getElementById('trackDate').textContent =
+      `${count} trace${count > 1 ? 's' : ''} · clique sur une trace pour l'analyser`;
+  }
+  for (const [canvasId, key] of [['hrChart', 'hr'], ['speedChart', 'speed'], ['elevChart', 'elev'], ['gradeChart', 'grade']]) {
+    clearChart(canvasId, key);
+  }
+  clearCombinedChart();
+  updateClimbStats([]);
+  highlightSidebarItem(null);
 }
 
 // ── Import GPX files (un par un, chaque trace s'affiche dès qu'elle est enregistrée) ──
@@ -199,8 +210,14 @@ function redrawAllCharts() {
   const speedData = subsample(trackData.points.map((p) => p._speed ?? 0));
   drawChart('speedChart', speedData, '#60a5fa', '#60a5fa', 'speed');
   const gradeData = subsample(trackData.points.map((p) => p._grade ?? 0));
-  drawChart('gradeChart', gradeData, '#c084fc', '#c084fc', 'grade');
-  updateClimbStats(trackData.climbs);
+  // Pente max en rouge sur le graphique des côtes
+  const { steepest } = trackData;
+  const lastIdx = trackData.points.length - 1;
+  drawChart('gradeChart', gradeData, '#c084fc', '#c084fc', 'grade', {
+    highlight: steepest && { start: steepest.startIdx / lastIdx, end: steepest.endIdx / lastIdx },
+  });
+  updateClimbStats(trackData.climbs, steepest);
+  drawCombinedChart();
   if (trackData.stats.hasHR) {
     const hrData = subsample(trackData.points.map((p) => p.hr ?? 0));
     drawChart('hrChart', hrData, '#ef4444', '#ef4444', 'hr');
@@ -234,7 +251,7 @@ function showDemo(xmlString) {
   const stats = calcStats(parsed.points);
   if (!stats) return;
 
-  trackData = { ...parsed, stats, climbs: calcClimbs(parsed.points) };
+  trackData = { ...parsed, stats, climbs: calcClimbs(parsed.points), steepest: calcSteepest(parsed.points) };
   selectedActivityId = null;
 
   openMap();
@@ -282,51 +299,22 @@ async function removeActivity(id) {
   }
 }
 
-// ── Overlays position (plein écran : au-dessus des graphiques) ──
+// ── Overlays position : entre l'en-tête (mobile) et les données en bas de la carte ──
 function repositionOverlays() {
   const panel = document.querySelector('.panel--map');
   const overlay = document.getElementById('mapOverlayStats');
   const traces = document.getElementById('tracesPanel');
-  const chartsRow = document.getElementById('chartsRow');
-  if (!panel || !overlay || !traces || !chartsRow) return;
+  if (!panel || !overlay || !traces) return;
 
-  if (panel.classList.contains('fullscreen')) {
-    const top = panel.querySelector('.panel__header').offsetHeight + 12;
-    const bottom = chartsRow.offsetHeight + 12;
-    overlay.style.bottom = bottom + 'px';
-    traces.style.top = top + 'px';
-    traces.style.maxHeight = `calc(100% - ${top + bottom}px)`;
-  } else {
-    overlay.style.bottom = '';
-    traces.style.top = '';
-    traces.style.maxHeight = '';
-  }
-}
-
-function bindFullscreenButton() {
-  const btn = document.getElementById('btnFullscreen');
-  const panel = document.querySelector('.panel--map');
-  if (!btn || !panel) return;
-
-  const enterOrExitFullscreen = () => {
-    setTimeout(() => {
-      if (map) map.invalidateSize();
-      redrawAllCharts();
-      repositionOverlays();
-    }, 50);
-  };
-
-  btn.addEventListener('click', () => {
-    panel.classList.toggle('fullscreen');
-    enterOrExitFullscreen();
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && panel.classList.contains('fullscreen')) {
-      panel.classList.remove('fullscreen');
-      enterOrExitFullscreen();
-    }
-  });
+  // Desktop : le nom de la trace flotte au centre, rien à éviter en haut
+  const top = MOBILE_QUERY.matches ? panel.querySelector('.panel__header').offsetHeight + 8 : 8;
+  // Mobile : le graphique combiné remplace la rangée de graphiques
+  const charts = document.getElementById(MOBILE_QUERY.matches ? 'chartCombined' : 'chartsRow');
+  const bottom = charts.offsetHeight + 8;
+  overlay.style.bottom = bottom + 'px';
+  traces.style.top = top + 'px';
+  document.getElementById('mapControls').style.top = top + 'px';
+  traces.style.maxHeight = `calc(100% - ${top + bottom}px)`;
 }
 
 // ── Button bindings ──────────────────────────────
@@ -514,16 +502,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindLayerButtons();
   bindMetricButtons();
   bindDemoButtons();
-  bindFullscreenButton();
   setupImportButton();
   bindTracesPanel();
   bindChartsCarousel();
   bindThemeToggle();
   bindAuth();
   initChartHover();
+  initCombinedChart();
 
   // Session serveur active ? (sinon mode local)
   await initAuth();
   updateAuthUI();
   refreshActivities({ fit: 'all' });
+  repositionOverlays();
+
+  // Passage mobile ↔ desktop : épaisseur de trace et surimpressions différentes
+  MOBILE_QUERY.addEventListener('change', () => {
+    renderMap();
+    repositionOverlays();
+  });
 });

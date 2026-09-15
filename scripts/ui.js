@@ -73,14 +73,14 @@ function updateMapOverlay(stats) {
   overlay.removeAttribute('hidden');
 }
 
-// ── Climbs card (nombre de côtes, plus raide) ────
-function updateClimbStats(climbs) {
+// ── Climbs card (pente moyenne des montées, pente max et où) ────
+function updateClimbStats(climbs, steepest) {
   if (!climbs) return;
-  const steepest = climbs.reduce((max, c) => Math.max(max, c.avg), 0);
-  document.getElementById('cv-climb-count').textContent = climbs.length;
-  document.getElementById('cv-grade-max').textContent = climbs.length
-    ? steepest.toFixed(1)
-    : '—';
+  const gain = climbs.reduce((sum, c) => sum + c.gain, 0);
+  const lengthM = climbs.reduce((sum, c) => sum + c.lengthKm * 1000, 0);
+  document.getElementById('cv-grade-avg').textContent = lengthM ? ((gain / lengthM) * 100).toFixed(1) : '—';
+  document.getElementById('cv-grade-max').textContent = steepest ? steepest.grade.toFixed(1) : '—';
+  document.getElementById('cv-grade-max-km').textContent = steepest ? `% · km ${steepest.km.toFixed(1)}` : '%';
 }
 
 // ── Auth button state ────────────────────────────
@@ -223,7 +223,9 @@ function renderSidebar() {
   list.querySelectorAll('.trace-item').forEach((item) => {
     const id = item.dataset.id;
     item.querySelector('.trace-item__btn').addEventListener('click', () => {
-      selectActivity(id);
+      // Re-clic sur la trace sélectionnée : retour à toutes les traces
+      if (id === selectedActivityId) clearSelection({ fit: 'all' });
+      else selectActivity(id);
       if (MOBILE_QUERY.matches) setTracesPanelOpen(false);
     });
     item.querySelector('.trace-item__edit').addEventListener('click', () => renameTrace(id));

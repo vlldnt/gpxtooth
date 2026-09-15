@@ -215,6 +215,27 @@ function calcClimbs(points) {
   return climbs;
 }
 
+// ── Pente max : mesurée sur au moins STEEPEST_WINDOW_M (lisse le bruit GPS) ──
+// À appeler après calcStats (utilise _cumDist). Renvoie { grade, startIdx, endIdx, km } ou null.
+const STEEPEST_WINDOW_M = 100;
+
+function calcSteepest(points) {
+  let best = null;
+  let j = 0;
+  for (let i = 0; i < points.length; i++) {
+    const start = points[i]._cumDist * 1000;
+    j = Math.max(j, i + 1);
+    while (j < points.length && points[j]._cumDist * 1000 - start < STEEPEST_WINDOW_M) j++;
+    if (j >= points.length) break;
+
+    const grade = ((points[j].ele - points[i].ele) / (points[j]._cumDist * 1000 - start)) * 100;
+    if (grade > 0 && (!best || grade > best.grade)) {
+      best = { grade, startIdx: i, endIdx: j, km: points[i]._cumDist };
+    }
+  }
+  return best;
+}
+
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;

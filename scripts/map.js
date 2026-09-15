@@ -37,11 +37,12 @@ function initMap() {
     center: [46.5, 2.5],
     zoom: 5,
     zoomControl: false,
-    attributionControl: true,
+    attributionControl: false, // pas de crédit en bas à droite de la carte
   });
 
-  // Zoom à droite : le panneau traces occupe le coin haut-gauche
-  L.control.zoom({ position: 'topright' }).addTo(map);
+  // Zoom rangé sous les contrôles de la carte (haut droite) ; le panneau traces occupe le coin haut-gauche
+  const zoom = L.control.zoom({ position: 'topright' }).addTo(map);
+  document.getElementById('mapControls')?.appendChild(zoom.getContainer());
 
   setTileLayer('osm');
 
@@ -155,38 +156,42 @@ function fitToPoints(pointLists) {
   }
 }
 
-// ── Non-selected traces (transparent) ─────────────
+// ── Non-selected traces ───────────────────────────
+// Sans sélection : couleurs vives. Avec une trace sélectionnée : les autres en clair.
+// Survol (carte ou liste) : vive et plus épaisse, pour viser la bonne trace.
+const BG_STYLE_DIMMED = { opacity: 0.6, weight: 3 };
+const BG_STYLE_VIVID = { opacity: 1, weight: 4 };
+const BG_STYLE_HOVER = { opacity: 1, weight: 6 };
+
 // tracks : [{ id, points, color }] — clic sur une trace = sélection
-function drawBackgroundTracks(tracks, onSelect) {
+function drawBackgroundTracks(tracks, onSelect, { dimmed = true } = {}) {
+  const base = dimmed ? BG_STYLE_DIMMED : BG_STYLE_VIVID;
   for (const { id, points, color } of tracks) {
     if (points.length < 2) continue;
-    const line = L.polyline(
-      points.map((p) => [p.lat, p.lon]),
-      {
-        color,
-        weight: 3,
-        opacity: 0.35,
-        lineCap: 'round',
-        lineJoin: 'round',
-      },
-    ).addTo(map);
-    line.on('click', () => onSelect(id));
-    trackLayers.push(line);
-    backgroundLayers.set(id, line);
+    const latlngs = points.map((p) => [p.lat, p.lon]);
+    const line = L.polyline(latlngs, {
+      color,
+      ...base,
+      lineCap: 'round',
+      lineJoin: 'round',
+      interactive: false,
+    }).addTo(map);
+    // Zone de clic large et invisible : la trace reste facile à viser
+    const hit = L.polyline(latlngs, { color, weight: 16, opacity: 0.001 }).addTo(map);
+    hit.on('click', () => onSelect(id));
+    hit.on('mouseover', () => previewTrack(id, true));
+    hit.on('mouseout', () => previewTrack(id, false));
+    trackLayers.push(line, hit);
+    backgroundLayers.set(id, { line, base });
   }
 }
 
-// Survol d'une trace dans la liste : aperçu opaque sur la carte
 function previewTrack(id, active) {
-  const line = backgroundLayers.get(id);
-  if (!line) return;
-  if (active) {
-    line.setStyle({ opacity: 0.95, weight: 5 });
-    line.bringToFront();
-  } else {
-    line.setStyle({ opacity: 0.35, weight: 3 });
-    line.bringToBack();
-  }
+  const layer = backgroundLayers.get(id);
+  if (!layer) return;
+  layer.line.setStyle(active ? BG_STYLE_HOVER : layer.base);
+  if (active) layer.line.bringToFront();
+  else layer.line.bringToBack();
 }
 
 // ── Draw selected track (opaque) ──────────────────
@@ -207,17 +212,22 @@ function drawTrack(points, metric, color = '#00e578') {
   updateLegend(metric, min, max);
 
   const latlngs = points.map((p) => [p.lat, p.lon]);
+  // Mobile : trait plus fin (÷ 1,5), couleur seule sans contour
+  const mobile = MOBILE_QUERY.matches;
+  const weight = mobile ? 4 / 1.5 : 4;
 
-  // Contour sombre sous la trace : lisible sur tous les fonds de carte
-  const casing = L.polyline(latlngs, {
-    color: '#000000',
-    weight: 8,
-    opacity: 0.35,
-    lineCap: 'round',
-    lineJoin: 'round',
-    interactive: false,
-  }).addTo(map);
-  trackLayers.push(casing);
+  // Contour sombre sous la trace (desktop) : lisible sur tous les fonds de carte
+  if (!mobile) {
+    const casing = L.polyline(latlngs, {
+      color: '#000000',
+      weight: 8,
+      opacity: 0.35,
+      lineCap: 'round',
+      lineJoin: 'round',
+      interactive: false,
+    }).addTo(map);
+    trackLayers.push(casing);
+  }
 
   // Draw colored segments
   if (metric !== 'none') {
@@ -234,7 +244,7 @@ function drawTrack(points, metric, color = '#00e578') {
         ],
         {
           color: segColor,
-          weight: 4,
+          weight,
           opacity: 1,
           lineCap: 'round',
           lineJoin: 'round',
@@ -247,7 +257,7 @@ function drawTrack(points, metric, color = '#00e578') {
   } else {
     const line = L.polyline(latlngs, {
       color,
-      weight: 4,
+      weight,
       opacity: 1,
       lineCap: 'round',
       interactive: false,
